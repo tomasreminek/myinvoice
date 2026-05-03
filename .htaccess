@@ -11,9 +11,10 @@ Options -Indexes -MultiViews
 
     # 1) Force HTTPS
     RewriteCond %{HTTPS} off
-    RewriteCond %{HTTP:X-Forwarded-Proto} !https  <-- PŘIDÁNO
+    RewriteCond %{HTTP:X-Forwarded-Proto} !=https
     RewriteCond %{HTTP_HOST} !^localhost [NC]
     RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
 
 
     # 2) Bezpečnostní bariéra: blokovat citlivé složky
