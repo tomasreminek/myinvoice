@@ -4,7 +4,7 @@ aspnet_client/
 log/
 cfg.php
 cfg.local.php
-cfg.docker.php
+# cfg.docker.php
 .env
 private/
 storage/
