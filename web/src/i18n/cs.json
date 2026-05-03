@@ -498,6 +498,9 @@
     "avg_payment": "Ø doba úhrady",
     "days": "dní",
     "this_year_paid": "letošní zaplacené",
+    "pending_approvals": "Čeká na schválení",
+    "pending_approvals_hint": "klikni pro inbox",
+    "pending_approvals_overdue": "{n}× po 5+ dnech bez reakce",
     "revenue_by_month": "Obrat po měsících — {currency}",
     "top_clients_year": "Top klienti — {year}",
     "status_for_year": "Stav faktur — {year}",
@@ -612,6 +615,7 @@
     "et_known_codes": {
       "invoice_send": "Odeslání faktury",
       "invoice_reminder": "Upomínka faktury",
+      "invoice_approval": "Žádost o schválení výkazu",
       "password_reset": "Reset hesla"
     },
     "self_delete_warning": "Nelze smazat vlastní účet."

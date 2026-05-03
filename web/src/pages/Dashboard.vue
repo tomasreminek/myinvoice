@@ -13,6 +13,7 @@ import StatusDoughnutChart from '@/components/charts/StatusDoughnutChart.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
+const isAdmin = computed(() => auth.user?.role === 'admin')
 
 const summary = ref<DashboardSummary | null>(null)
 const loading = ref(true)
@@ -30,13 +31,18 @@ onMounted(async () => {
 
 const kpiGridCols = computed(() => {
   if (!summary.value) return 'lg:grid-cols-4'
-  const count = (summary.value.kpi.per_currency?.length ?? 0) + 3 // Vystaveno + Po splatnosti + Ø
+  const showApprovals = isAdmin.value
+    && (summary.value.pending_approvals?.requested ?? 0) > 0
+  const count = (summary.value.kpi.per_currency?.length ?? 0)
+    + 3                              // Vystaveno + Po splatnosti + Ø
+    + (showApprovals ? 1 : 0)        // + Čeká na schválení
   // Tailwind musí vidět tyto třídy staticky — proto explicitní mapping:
   return ({
     3: 'lg:grid-cols-3',
     4: 'lg:grid-cols-4',
     5: 'lg:grid-cols-5',
     6: 'lg:grid-cols-6',
+    7: 'lg:grid-cols-7',
   } as Record<number, string>)[count] ?? 'lg:grid-cols-4'
 })
 
@@ -135,6 +141,26 @@ function openInvoice(id: number) {
           </div>
           <div class="text-xs text-neutral-400 mt-1">{{ t('dashboard.this_year_paid') }}</div>
         </div>
+
+        <!-- Pending approvals tile (admin only, jen pokud existují requested) -->
+        <RouterLink
+          v-if="isAdmin && summary.pending_approvals && summary.pending_approvals.requested > 0"
+          to="/admin/approvals"
+          class="bg-white border rounded-lg p-5 shadow-sm hover:bg-primary-50 transition cursor-pointer"
+          :class="summary.pending_approvals.overdue > 0 ? 'border-warning-500/50' : 'border-primary-500/40'">
+          <div class="text-xs uppercase tracking-wide text-neutral-500 mb-1">{{ t('dashboard.pending_approvals') }}</div>
+          <div class="text-2xl font-semibold"
+            :class="summary.pending_approvals.overdue > 0 ? 'text-warning-600' : 'text-primary-700'">
+            {{ summary.pending_approvals.requested }}
+          </div>
+          <div class="text-xs mt-1"
+            :class="summary.pending_approvals.overdue > 0 ? 'text-warning-600' : 'text-neutral-400'">
+            <span v-if="summary.pending_approvals.overdue > 0">
+              {{ t('dashboard.pending_approvals_overdue', { n: summary.pending_approvals.overdue }) }}
+            </span>
+            <span v-else>{{ t('dashboard.pending_approvals_hint') }}</span>
+          </div>
+        </RouterLink>
       </div>
 
       <!-- Top klienti — koláč 2026 + 2025 vedle sebe -->

@@ -26,7 +26,7 @@ final class EmailTemplateAction
      * Známé kódy šablon — fix list, ne dynamický.
      * Při přidání nového typu emailu rozšířit zde a v api/templates/email/.
      */
-    private const KNOWN = ['invoice_send', 'invoice_reminder', 'password_reset'];
+    private const KNOWN = ['invoice_send', 'invoice_reminder', 'invoice_approval', 'password_reset'];
     private const LOCALES = ['cs', 'en'];
 
     public function __construct(
@@ -148,11 +148,13 @@ final class EmailTemplateAction
         $cs = [
             'invoice_send'     => 'Faktura {{ invoice.varsymbol }}',
             'invoice_reminder' => 'Upomínka — faktura {{ invoice.varsymbol }} ({{ days_overdue }} dní po splatnosti)',
+            'invoice_approval' => 'Žádost o schválení výkazu práce ({{ invoice.varsymbol_or_id }})',
             'password_reset'   => 'Obnova hesla',
         ];
         $en = [
             'invoice_send'     => 'Invoice {{ invoice.varsymbol }}',
             'invoice_reminder' => 'Reminder — invoice {{ invoice.varsymbol }} ({{ days_overdue }} days overdue)',
+            'invoice_approval' => 'Work report — please approve ({{ invoice.varsymbol_or_id }})',
             'password_reset'   => 'Password reset',
         ];
         return ($locale === 'en' ? $en : $cs)[$code] ?? '';

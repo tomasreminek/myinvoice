@@ -49,6 +49,7 @@ export interface DashboardSummary {
   top_clients_ytd: TopClient[]
   top_clients_prev_year: TopClient[]
   revenue_by_month: RevenueByMonth[]
+  pending_approvals?: { requested: number; overdue: number }
   today: string
   year: number
   prev_year: number

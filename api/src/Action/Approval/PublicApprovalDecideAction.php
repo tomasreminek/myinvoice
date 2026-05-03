@@ -7,6 +7,7 @@ namespace MyInvoice\Action\Approval;
 use MyInvoice\Http\Json;
 use MyInvoice\Repository\InvoiceRepository;
 use MyInvoice\Service\ActivityLogger;
+use MyInvoice\Service\Approval\ApprovalTokenValidator;
 use MyInvoice\Service\Captcha\TurnstileVerifier;
 use MyInvoice\Service\Invoice\AutoIssueAndSendService;
 use MyInvoice\Service\IpMatcher;
@@ -43,7 +44,7 @@ final class PublicApprovalDecideAction
     public function __invoke(Request $request, Response $response, array $args): Response
     {
         $token = (string) ($args['token'] ?? '');
-        if ($token === '' || !preg_match('/^[a-f0-9]{32,128}$/', $token)) {
+        if (!ApprovalTokenValidator::isValidFormat($token)) {
             return Json::error($response, 'invalid_token', 'Neplatný odkaz.', 404);
         }
 

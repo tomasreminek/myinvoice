@@ -39,7 +39,30 @@ final class ApprovalEmailVarsBuilder
         $invoice['varsymbol_or_id'] = $varsymbolOrId;
 
         $supplierName = $this->resolveSupplierName($invoice);
+        $subject = self::buildSubject($varsymbolOrId, $supplierName, $locale, $isTest, $isReminder);
 
+        return [
+            'invoice'       => $invoice,
+            'work_report'   => $this->workReports->findByInvoice((int) $invoice['id']),
+            'approval_url'  => $approvalUrl,
+            'is_test'       => $isTest,
+            'is_reminder'   => $isReminder,
+            'subject'       => $subject,
+            'supplier'      => $this->loadSupplierFooter($invoice),
+        ];
+    }
+
+    /**
+     * Pure function — buduje subject string ze vstupních parametrů.
+     * Public/static aby se dalo otestovat bez DB/Config dependencies.
+     */
+    public static function buildSubject(
+        string $varsymbolOrId,
+        string $supplierName,
+        string $locale,
+        bool $isTest,
+        bool $isReminder,
+    ): string {
         if ($isReminder) {
             $subject = $locale === 'en'
                 ? "Reminder: please approve work report ({$varsymbolOrId})"
@@ -51,16 +74,7 @@ final class ApprovalEmailVarsBuilder
         }
         if ($isTest) $subject = '[TEST] ' . $subject;
         if ($supplierName !== '') $subject .= " — {$supplierName}";
-
-        return [
-            'invoice'       => $invoice,
-            'work_report'   => $this->workReports->findByInvoice((int) $invoice['id']),
-            'approval_url'  => $approvalUrl,
-            'is_test'       => $isTest,
-            'is_reminder'   => $isReminder,
-            'subject'       => $subject,
-            'supplier'      => $this->loadSupplierFooter($invoice),
-        ];
+        return $subject;
     }
 
     private function resolveSupplierName(array $invoice): string

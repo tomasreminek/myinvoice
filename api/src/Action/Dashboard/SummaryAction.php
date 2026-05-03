@@ -39,10 +39,35 @@ final class SummaryAction
             'top_clients_ytd'        => $this->topClients($pdo, $year, $sid),
             'top_clients_prev_year'  => $this->topClients($pdo, $prevYear, $sid),
             'revenue_by_month'       => $this->revenueByMonth($pdo, $year, $prevYear, $sid),
+            'pending_approvals'      => $this->pendingApprovals($pdo, $sid),
             'today'                  => $today->format('Y-m-d'),
             'year'                   => $year,
             'prev_year'              => $prevYear,
         ]);
+    }
+
+    /**
+     * Schvalování výkazu zákazníkem — count requested + overdue (>5 dní).
+     * Klik na tile → /admin/approvals.
+     * @return array{requested: int, overdue: int}
+     */
+    private function pendingApprovals(\PDO $pdo, int $sid): array
+    {
+        $stmt = $pdo->prepare(
+            "SELECT
+                SUM(CASE WHEN approval_status = 'requested' THEN 1 ELSE 0 END) AS requested,
+                SUM(CASE WHEN approval_status = 'requested'
+                          AND COALESCE(approval_reminder_at, approval_requested_at)
+                              <= DATE_SUB(NOW(), INTERVAL 5 DAY) THEN 1 ELSE 0 END) AS overdue
+              FROM invoices
+             WHERE supplier_id = ?"
+        );
+        $stmt->execute([$sid]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC) ?: ['requested' => 0, 'overdue' => 0];
+        return [
+            'requested' => (int) ($row['requested'] ?? 0),
+            'overdue'   => (int) ($row['overdue'] ?? 0),
+        ];
     }
 
     private function kpi(\PDO $pdo, int $year, int $prevYear, int $sid): array

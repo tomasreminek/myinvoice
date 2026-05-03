@@ -498,6 +498,9 @@
     "avg_payment": "Avg. payment time",
     "days": "days",
     "this_year_paid": "this year paid",
+    "pending_approvals": "Pending approvals",
+    "pending_approvals_hint": "click for inbox",
+    "pending_approvals_overdue": "{n}× over 5+ days no response",
     "revenue_by_month": "Revenue by month — {currency}",
     "top_clients_year": "Top clients — {year}",
     "status_for_year": "Invoice status — {year}",
@@ -612,6 +615,7 @@
     "et_known_codes": {
       "invoice_send": "Send invoice",
       "invoice_reminder": "Invoice reminder",
+      "invoice_approval": "Work-report approval request",
       "password_reset": "Password reset"
     },
     "self_delete_warning": "Cannot delete your own account."

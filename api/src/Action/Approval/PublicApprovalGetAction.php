@@ -9,6 +9,7 @@ use MyInvoice\Infrastructure\Config\Config;
 use MyInvoice\Infrastructure\Database\Connection;
 use MyInvoice\Repository\InvoiceRepository;
 use MyInvoice\Repository\WorkReportRepository;
+use MyInvoice\Service\Approval\ApprovalTokenValidator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -33,7 +34,7 @@ final class PublicApprovalGetAction
     public function __invoke(Request $request, Response $response, array $args): Response
     {
         $token = (string) ($args['token'] ?? '');
-        if ($token === '' || !preg_match('/^[a-f0-9]{32,128}$/', $token)) {
+        if (!ApprovalTokenValidator::isValidFormat($token)) {
             return Json::error($response, 'invalid_token', 'Neplatný odkaz.', 404);
         }
 
