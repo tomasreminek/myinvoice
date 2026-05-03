@@ -100,8 +100,22 @@ final class Mailer
         $email = (new Email())
             ->from(new Address($globalFromEmail, $fromName))
             ->subject((string) $vars['subject'])
-            ->html($html)
             ->text($text);
+
+        // Convert base64 data URIs to inline CID attachments (many mail clients block data:image)
+        if (preg_match_all('/src="(data:image\/([^;]+);base64,([^"]+))"/i', $html, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $i => $match) {
+                $fullSrc = $match[1];
+                $ext = $match[2];
+                $base64 = $match[3];
+                $cid = 'img_' . $i . '_' . substr(md5($base64), 0, 8) . '.' . $ext;
+                
+                $html = str_replace($fullSrc, 'cid:' . $cid, $html);
+                $email->embed(base64_decode($base64), $cid, 'image/' . $ext);
+            }
+        }
+
+        $email->html($html);
 
         foreach ($to as $addr)  $email->addTo($addr);
         foreach ($cc as $addr)  $email->addCc($addr);
