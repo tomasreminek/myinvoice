@@ -556,7 +556,7 @@
     "supplier": "Dodavatel",
     "currencies_banks": "Měny + bankovní účty",
     "company_name": "Obchodní jméno",
-    "display_name": "Display name",
+    "display_name": "Zobrazované jméno",
     "street": "Ulice",
     "city": "Město",
     "zip": "PSČ",

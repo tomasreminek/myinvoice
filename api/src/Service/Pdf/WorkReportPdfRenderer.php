@@ -121,20 +121,26 @@ final class WorkReportPdfRenderer
 
     private function resolveSupplier(array $invoice): array
     {
+        $sid = (int) ($invoice['supplier_id'] ?? 0);
+        $live = [];
+        if ($sid > 0) {
+            $stmt = $this->db->pdo()->prepare(
+                'SELECT s.*, co.iso2 AS country_iso2, co.name_cs AS country_name_cs, co.name_en AS country_name_en
+                   FROM supplier s LEFT JOIN countries co ON co.id = s.country_id WHERE s.id = ?'
+            );
+            $stmt->execute([$sid]);
+            $live = $stmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+        }
         if (!empty($invoice['supplier_snapshot'])) {
             $snap = is_string($invoice['supplier_snapshot'])
                 ? json_decode($invoice['supplier_snapshot'], true)
                 : $invoice['supplier_snapshot'];
-            if (is_array($snap)) return $snap;
+            if (is_array($snap)) {
+                // Snapshot je primární (historie), live data fallback na chybějící klíče.
+                return array_merge($live, $snap);
+            }
         }
-        $sid = (int) ($invoice['supplier_id'] ?? 0);
-        if ($sid <= 0) return [];
-        $stmt = $this->db->pdo()->prepare(
-            'SELECT s.*, co.iso2 AS country_iso2, co.name_cs AS country_name_cs, co.name_en AS country_name_en
-               FROM supplier s LEFT JOIN countries co ON co.id = s.country_id WHERE s.id = ?'
-        );
-        $stmt->execute([$sid]);
-        return $stmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+        return $live;
     }
 
     private function resolveLogoPath(array $supplier): ?string

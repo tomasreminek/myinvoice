@@ -192,11 +192,17 @@ final class InvoicePdfRenderer
 
     private function resolveSupplier(array $invoice): array
     {
+        $live = $this->getSupplierData((int) ($invoice['supplier_id'] ?? 0));
         if (!empty($invoice['supplier_snapshot'])) {
             $snap = is_string($invoice['supplier_snapshot']) ? json_decode($invoice['supplier_snapshot'], true) : $invoice['supplier_snapshot'];
-            if (is_array($snap)) return $snap;
+            if (is_array($snap)) {
+                // Defensive merge: snapshot je primární (zachovává historické údaje), ale chybějící
+                // klíče (př. legacy snapshoty bez street/is_vat_payer) doplníme z live supplier dat.
+                // Zabrání tomu, aby se vystavená faktura ze stubu vykreslila jen s názvem firmy.
+                return array_merge($live, $snap);
+            }
         }
-        return $this->getSupplierData((int) ($invoice['supplier_id'] ?? 0));
+        return $live;
     }
 
     private function resolveClient(array $invoice): array

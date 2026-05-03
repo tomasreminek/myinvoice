@@ -11,8 +11,11 @@ use PDO;
  * Přepočítává cache tabulky `project_revenue_cache` a `client_revenue_cache`
  * po každé změně faktur (create/update/issue/cancel/delete).
  *
- * Sčítají se jen faktury (`invoice`) a dobropisy (`credit_note`) — proformy a stornovací doklady ne.
- * `last_invoice_date` = MAX(COALESCE(tax_date, issue_date)) z těchto faktur.
+ * Dvě různé filtrace v rámci jednoho dotazu:
+ *  - `revenue` / `invoice_count` — jen `invoice` + `credit_note` (proforma není daňový doklad)
+ *  - `last_invoice_date` — jakákoli **aktivita** na projektu/klientu, vč. proform
+ *    (status IN issued/sent/reminded/paid, type != cancellation). Reflektuje, kdy se na
+ *    projektu naposled něco dělo, ne jen finální fakturace.
  *
  * Idempotentní — vždy mažeme všechny existující řádky pro danou entity a re-insertujeme.
  */
@@ -35,13 +38,15 @@ final class StatsRecomputer
 
             $stmt = $pdo->prepare(
                 "SELECT i.currency_id,
-                        SUM(i.total_with_vat) AS revenue,
-                        MAX(COALESCE(i.tax_date, i.issue_date)) AS last_date,
-                        COUNT(*) AS cnt
+                        SUM(CASE WHEN i.invoice_type IN ('invoice', 'credit_note')
+                                  THEN i.total_with_vat ELSE 0 END) AS revenue,
+                        SUM(CASE WHEN i.invoice_type IN ('invoice', 'credit_note')
+                                  THEN 1 ELSE 0 END) AS cnt,
+                        MAX(COALESCE(i.tax_date, i.issue_date)) AS last_date
                    FROM invoices i
                   WHERE i.project_id = ?
                     AND i.status IN ('issued', 'sent', 'reminded', 'paid')
-                    AND i.invoice_type IN ('invoice', 'credit_note')
+                    AND i.invoice_type != 'cancellation'
                GROUP BY i.currency_id"
             );
             $stmt->execute([$projectId]);
@@ -82,13 +87,15 @@ final class StatsRecomputer
 
             $stmt = $pdo->prepare(
                 "SELECT i.currency_id,
-                        SUM(i.total_with_vat) AS revenue,
-                        MAX(COALESCE(i.tax_date, i.issue_date)) AS last_date,
-                        COUNT(*) AS cnt
+                        SUM(CASE WHEN i.invoice_type IN ('invoice', 'credit_note')
+                                  THEN i.total_with_vat ELSE 0 END) AS revenue,
+                        SUM(CASE WHEN i.invoice_type IN ('invoice', 'credit_note')
+                                  THEN 1 ELSE 0 END) AS cnt,
+                        MAX(COALESCE(i.tax_date, i.issue_date)) AS last_date
                    FROM invoices i
                   WHERE i.client_id = ?
                     AND i.status IN ('issued', 'sent', 'reminded', 'paid')
-                    AND i.invoice_type IN ('invoice', 'credit_note')
+                    AND i.invoice_type != 'cancellation'
                GROUP BY i.currency_id"
             );
             $stmt->execute([$clientId]);
