@@ -11,7 +11,7 @@ web/node_modules
 web/dist
 
 # Local-only
-cfg.php
+
 cfg.local.php
 log
 storage
