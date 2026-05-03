@@ -23,9 +23,7 @@ services:
     ports:
       - "${APP_PORT:-8080}:80"
     volumes:
-      # Docker-specific cfg (separate from native-dev cfg.php so both can coexist).
-      # docker-install.{sh,ps1} generates cfg.docker.php with db=db, redis=redis hostnames.
-      - ./cfg.docker.php:/var/www/html/cfg.php:ro
+
       # Mutable runtime data
       - app-log:/var/www/html/log
       - app-storage:/var/www/html/storage
