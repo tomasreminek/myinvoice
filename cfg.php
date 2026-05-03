@@ -14,5 +14,8 @@ if (getenv('APP_PEPPER')) {
 if (getenv('APP_SECRET')) {
     $config['app']['secret_encryption_key'] = getenv('APP_SECRET');
 }
+if (getenv('APP_URL')) {
+    $config['app']['url'] = getenv('APP_URL');
+}
 
 return $config;
