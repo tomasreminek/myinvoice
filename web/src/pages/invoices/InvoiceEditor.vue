@@ -3,9 +3,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { invoicesApi, type Invoice, type InvoicePayload, type InvoiceItem, type WorkReportItem } from '@/api/invoices'
 import { useHotkey } from '@/composables/useHotkey'
+import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 
 const { t, locale } = useI18n()
+const toast = useToast()
 
 useHotkey('ctrl+s', (e) => { e.preventDefault(); submit() })
 import { clientsApi, type Client, type ViesLookupResult } from '@/api/clients'
@@ -22,6 +24,7 @@ const invoiceId = computed(() => (isEdit.value ? Number(route.params.id) : null)
 
 const loaded = ref(false)
 const submitting = ref(false)
+const loadedRate = ref<{ rate: number; date: string; currency: string } | null>(null)
 const error = ref('')
 const isForce = computed(() => route.query.force === '1')
 const editedStatus = ref<string>('draft')
@@ -46,6 +49,7 @@ const form = ref<{
   note_above_items: string
   note_below_items: string
   advance_paid_amount: number
+  exchange_rate: number | null
   items: InvoiceItem[]
 }>({
   invoice_type: 'invoice',
@@ -61,6 +65,7 @@ const form = ref<{
   note_above_items: '',
   note_below_items: '',
   advance_paid_amount: 0,
+  exchange_rate: null,
   items: [],
 })
 
@@ -77,6 +82,12 @@ function addDays(date: string, days: number): string {
 function defaultVatRateId(): number {
   const def = vatRates.value.find(v => v.is_default)
   return def?.id ?? vatRates.value[0]?.id ?? 0
+}
+
+function vatRateLabel(r: VatRate): string {
+  if (Number(r.rate_percent) > 0) return `${r.rate_percent} %`
+  if (r.is_reverse_charge) return t('invoice.vat_rate_label.reverse_charge')
+  return t('invoice.vat_rate_label.exempt')
 }
 
 function blankItem(): InvoiceItem {
@@ -143,7 +154,11 @@ onMounted(async () => {
       note_below_items: inv.note_below_items ?? '',
       advance_paid_amount: inv.advance_paid_amount,
       items: inv.items.map(i => ({ ...i })),
+      exchange_rate: inv.exchange_rate ?? null,
     })
+    loadedRate.value = (inv.exchange_rate && inv.currency !== 'CZK')
+      ? { rate: inv.exchange_rate, date: (inv.exchange_rate_date ?? inv.issue_date).slice(0, 10), currency: inv.currency }
+      : null
     if (inv.client_id) {
       await loadProjects(inv.client_id)
       await verifyClientVies(inv.client_id)
@@ -474,6 +489,10 @@ async function submit() {
       note_above_items: form.value.note_above_items || null,
       note_below_items: form.value.note_below_items || null,
       advance_paid_amount: form.value.advance_paid_amount,
+      // Pošli kurz jen pokud uživatel ho má nastavený a měna není CZK — backend bere
+      // explicit hodnotu jako manuální override (nepřepočítá z ČNB).
+      exchange_rate: (form.value.currency !== 'CZK' && form.value.exchange_rate && form.value.exchange_rate > 0)
+        ? form.value.exchange_rate : undefined,
       items: form.value.items.map((it, i) => ({
         description: it.description,
         quantity: it.quantity,
@@ -489,6 +508,20 @@ async function submit() {
       saved = await invoicesApi.update(invoiceId.value, payload, isForce.value)
     } else {
       saved = await invoicesApi.create(payload)
+    }
+
+    // EUR / cizí měna: backend stáhl kurz ČNB. Pokud byl použit fallback
+    // (víkend, svátek nebo last-known kurz), upozorni uživatele.
+    const rateMeta = saved._meta?.exchange_rate
+    if (rateMeta?.fallback_used) {
+      const rateStr = rateMeta.rate.toLocaleString(locale.value === 'cs' ? 'cs-CZ' : 'en-US', {
+        minimumFractionDigits: 3, maximumFractionDigits: 4,
+      })
+      const dateStr = new Date(rateMeta.rate_date).toLocaleDateString(locale.value === 'cs' ? 'cs-CZ' : 'en-US')
+      const key = rateMeta.source === 'last_known'
+        ? 'invoice.czk_recap.warning_last_known'
+        : 'invoice.czk_recap.warning_fallback'
+      toast.warning(t(key, { rate: rateStr, currency: rateMeta.currency, date: dateStr }))
     }
     // Po uložení faktury — pokud uživatel otevřel work report, ulož ho
     // (jen řádky s vyplněným popisem; prázdné řádky tiše ignorujeme — viz wrItemsValid)
@@ -661,6 +694,16 @@ async function deleteDraft() {
               <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('invoice.due_date') }} *</label>
               <input v-model="form.due_date" type="date" required class="w-full h-10 px-3 border border-neutral-300 rounded-md" />
             </div>
+            <div v-if="form.currency !== 'CZK' && form.exchange_rate !== null && form.exchange_rate > 0">
+              <label class="block text-sm font-medium text-neutral-700 mb-1">
+                {{ t('invoice.exchange_rate_label', { currency: form.currency }) }}
+              </label>
+              <input v-model.number="form.exchange_rate" type="number" step="0.0001" min="0"
+                class="w-full h-10 px-3 border border-neutral-300 rounded-md font-mono" />
+              <p class="text-xs text-neutral-500 mt-1">
+                {{ t('invoice.exchange_rate_hint') }}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -710,7 +753,7 @@ async function deleteDraft() {
               </td>
               <td class="px-3 py-2">
                 <select v-model.number="item.vat_rate_id" class="w-full h-9 px-1 border border-neutral-200 rounded text-sm bg-white">
-                  <option v-for="r in vatRates" :key="r.id" :value="r.id">{{ r.rate_percent }} %</option>
+                  <option v-for="r in vatRates" :key="r.id" :value="r.id">{{ vatRateLabel(r) }}</option>
                 </select>
               </td>
               <td class="px-3 py-2 text-right font-mono text-sm">
@@ -772,6 +815,13 @@ async function deleteDraft() {
             <div v-if="form.advance_paid_amount > 0" class="flex justify-between text-base font-semibold pt-1">
               <dt>{{ t('invoice.totals.amount_due') }}</dt>
               <dd class="font-mono">{{ formatMoney(computed_totals.amount_to_pay, form.currency) }}</dd>
+            </div>
+            <div v-if="loadedRate" class="text-xs text-neutral-500 pt-3 border-t border-neutral-200 mt-2">
+              {{ t('invoice.czk_recap.rate_info', {
+                rate: loadedRate.rate.toLocaleString(locale === 'cs' ? 'cs-CZ' : 'en-US', { minimumFractionDigits: 3, maximumFractionDigits: 4 }),
+                currency: loadedRate.currency,
+                date: new Date(loadedRate.date).toLocaleDateString(locale === 'cs' ? 'cs-CZ' : 'en-US'),
+              }) }}
             </div>
           </dl>
         </div>

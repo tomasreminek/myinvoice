@@ -100,10 +100,12 @@ final class QrPaymentGenerator
             throw new \RuntimeException('IBAN je povinný pro SEPA QR');
         }
 
+        $remittance = $varsymbol !== '' ? 'Faktura ' . $varsymbol : 'Faktura';
+
         return (string) (new SepaQrData())
             ->setName($name !== '' ? $name : 'MyInvoice')
             ->setIban($iban)
-            ->setRemittanceText('Faktura ' . $varsymbol)
+            ->setRemittanceText($remittance)
             ->setAmount($amount);
     }
 }

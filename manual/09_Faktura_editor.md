@@ -79,8 +79,12 @@ Automaticky se přepočítává:
 - **Mezisoučet** — součet `množství × cena/jed.` všech položek
 - **Sleva** — pokud je vyplněná (% nebo absolutní, pole vlevo)
 - **Základ DPH** — po slevě
-- **DPH 21 % / 12 % / 0 %** — rozdělené podle sazeb v položkách
+- **DPH 21 % / 12 % / 0 % (osvob.) / 0 % (RC)** — rozdělené podle sazeb v položkách
 - **Celkem k úhradě** — final částka v měně faktury
+
+> 💡 **Sazby DPH ve výběru** — `0 % (osvob.)` znamená osvobozeno od DPH,
+> `0 % (RC)` znamená reverse charge (přenesená daňová povinnost). Sazby mají
+> stejné procento, ale jiný legislativní význam — vybírej dle situace.
 
 ### 9.4.1 Sleva
 
@@ -89,6 +93,39 @@ Pole **Sleva** podporuje:
 - `10 %` → procentuální sleva z mezisoučtu
 - `1500` → absolutní sleva v měně faktury
 - `1500 Kč` → totéž
+
+### 9.4.2 Faktura v cizí měně (EUR / USD / …) — přepočet do CZK
+
+Pokud je faktura v jiné měně než CZK, MyInvoice po **uložení** automaticky
+stáhne denní devizový kurz **z ČNB** a uloží ho na fakturu. Kurz se použije
+pro přepočet **základů DPH** a **DPH** do CZK (kvůli českému účetnictví).
+
+**Kdy se kurz načítá:**
+
+- Po každém uložení EUR (cizí) faktury — server pošle požadavek na
+  `cnb.cz` (kurzovní lístek pro `issue_date`).
+- Pokud kurz pro daný den ještě není (víkend, svátek, pozdě večer):
+  systém zkusí **až 7 dní zpět** a najde nejbližší dříve dostupný kurz.
+- Kurz se cachuje v lokální DB — opakované otevření faktury už neposílá
+  nový request.
+- Pokud ČNB nedostupné a žádný kurz není v cache: použije se **poslední
+  známý kurz** (z dřívější faktury) a zobrazí se ⚠️ upozornění toast po uložení.
+
+**Co se přepočítává:**
+
+- ✅ **Základy DPH per sazba** (21 %, 12 %, 0 %) → CZK
+- ✅ **DPH per sazba** → CZK
+- ✅ **Celkem bez DPH / DPH celkem / Celkem** → CZK
+- ❌ **Jednotlivé řádky položek** se nepřepočítávají (zůstávají v cizí měně)
+
+Zaokrouhlování CZK přepočtu: **HALF_UP, 2 desetinná místa, zvlášť per sazba DPH**.
+
+**Kde je přepočet vidět:**
+
+- **Detail faktury** — sekce „Přepočet do CZK" pod hlavními totály
+- **PDF** — samostatná tabulka „Přepočet do CZK" pod sumářem (světle šedé
+  podbarvení), plus drobná řádka „Kurz ČNB: X CZK / 1 EUR (datum)"
+- **Editor (re-edit)** — informativní řádka pod totály s použitým kurzem
 
 ## 9.5 Tlačítka
 

@@ -281,6 +281,19 @@
       "advance_deduction": "Advance deduction",
       "amount_due": "Amount due"
     },
+    "czk_recap": {
+      "title": "CZK conversion",
+      "rate_info": "CNB rate: {rate} CZK / 1 {currency} on {date}",
+      "fallback_note": "rate from an earlier available day",
+      "warning_fallback": "CNB had no rate for the issue date — used rate {rate} CZK/{currency} from {date}.",
+      "warning_last_known": "CNB unavailable — used last known rate {rate} CZK/{currency} from {date}."
+    },
+    "vat_rate_label": {
+      "exempt": "0 % (exempt)",
+      "reverse_charge": "0 % (RC)"
+    },
+    "exchange_rate_label": "Rate CZK / 1 {currency}",
+    "exchange_rate_hint": "After the initial fetch from CNB the rate stays fixed. You can override it manually — the stored value is used in the PDF and exports.",
     "bank_not_set": "Bank account for {currency} is not configured in settings",
     "work_report": "Work report",
     "wr_add": "Add work report",

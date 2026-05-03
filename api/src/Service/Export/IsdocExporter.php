@@ -96,6 +96,12 @@ final class IsdocExporter
         $dom->appendChild($root);
 
         $currencyCode = (string) ($invoice['currency'] ?? 'CZK');
+        $localCurrency = 'CZK';   // účetní měna českého dodavatele — fixní pro ISDOC export
+        $isForeign = $currencyCode !== $localCurrency;
+        // Kurz: pro CZK fakturu vždy 1; pro cizí měnu z invoices.exchange_rate (CZK / 1 jednotka).
+        // Když cizí měna nemá zafixovaný kurz (legacy data), padá na 1 — accounting soft to vezme jako 1:1
+        // a uživatel si musí kurz doplnit. Backfill se snažíme udělat dřív, viz ExchangeRateApplier::ensureRate().
+        $rate = $isForeign ? (float) ($invoice['exchange_rate'] ?? 1.0) : 1.0;
 
         // Header
         $docType = match ($invoice['invoice_type']) {
@@ -112,8 +118,12 @@ final class IsdocExporter
             $this->el($dom, $root, 'TaxPointDate', (string) $invoice['tax_date']);
         }
         $this->el($dom, $root, 'VATApplicable', empty($invoice['reverse_charge']) ? 'true' : 'false');
-        $this->el($dom, $root, 'LocalCurrencyCode', $currencyCode);
-        $this->el($dom, $root, 'CurrRate', '1');
+        $this->el($dom, $root, 'LocalCurrencyCode', $localCurrency);
+        if ($isForeign) {
+            $this->el($dom, $root, 'CurrencyCode', $currencyCode);
+        }
+        // CurrRate = počet jednotek místní měny za 1 jednotku faktur. měny (CZK/EUR ≈ 24.36)
+        $this->el($dom, $root, 'CurrRate', number_format($rate, 6, '.', ''));
         $this->el($dom, $root, 'RefCurrRate', '1');
 
         // Supplier (snapshot first, then live)

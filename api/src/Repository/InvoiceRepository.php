@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MyInvoice\Repository;
 
 use MyInvoice\Infrastructure\Database\Connection;
+use MyInvoice\Service\Invoice\CzkRecap;
 use PDO;
 
 /**
@@ -71,7 +72,39 @@ final class InvoiceRepository
             'amount_to_pay'      => $row['amount_to_pay'],
         ];
 
+        // CZK přepočet — jen pokud měna != CZK a faktura má zafixovaný kurz.
+        // rate_date není uložené přímo na faktuře (kurz odpovídá issue_date — nebo
+        // nejbližšímu dříve dostupnému dni); pro zobrazení použijeme issue_date faktury.
+        if (
+            !empty($row['exchange_rate'])
+            && (string) ($row['currency'] ?? '') !== 'CZK'
+        ) {
+            $rateDate = (string) ($row['exchange_rate_date'] ?? $row['issue_date']);
+            $fallback = $rateDate !== (string) $row['issue_date'];
+            $row['czk_recap'] = CzkRecap::build(
+                $row['vat_breakdown'],
+                (float) $row['exchange_rate'],
+                $rateDate,
+                $fallback,
+            );
+        } else {
+            $row['czk_recap'] = null;
+        }
+
         return $row;
+    }
+
+    /**
+     * Zafixuje exchange_rate + exchange_rate_date na faktuře (CZK / 1 jednotka cizí
+     * měny + den, ke kterému kurz patří — viz fallback logiku CnbExchangeRateClient).
+     * Volá se z ExchangeRateApplier po fetch z ČNB. NULL = vyresetuje (např. při
+     * změně na CZK měnu).
+     */
+    public function setExchangeRate(int $invoiceId, ?float $rate, ?string $rateDate = null): void
+    {
+        $this->db->pdo()->prepare(
+            'UPDATE invoices SET exchange_rate = ?, exchange_rate_date = ? WHERE id = ?'
+        )->execute([$rate, $rateDate, $invoiceId]);
     }
 
     public function itemsFor(int $invoiceId): array
@@ -396,6 +429,9 @@ final class InvoiceRepository
         $row['reverse_charge']      = isset($row['reverse_charge']) ? (bool) $row['reverse_charge'] : false;
         foreach (['total_without_vat', 'total_vat', 'total_with_vat', 'rounding', 'advance_paid_amount', 'amount_to_pay'] as $f) {
             if (array_key_exists($f, $row) && $row[$f] !== null) $row[$f] = (float) $row[$f];
+        }
+        if (array_key_exists('exchange_rate', $row)) {
+            $row['exchange_rate'] = $row['exchange_rate'] !== null ? (float) $row['exchange_rate'] : null;
         }
         if (isset($row['client_reverse_charge'])) $row['client_reverse_charge'] = (bool) $row['client_reverse_charge'];
         if (array_key_exists('reminder_count', $row)) $row['reminder_count'] = (int) $row['reminder_count'];

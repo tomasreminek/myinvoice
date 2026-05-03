@@ -9,6 +9,7 @@ use MyInvoice\Http\SupplierGuard;
 use MyInvoice\Middleware\AuthMiddleware;
 use MyInvoice\Repository\InvoiceRepository;
 use MyInvoice\Service\ActivityLogger;
+use MyInvoice\Service\Currency\ExchangeRateApplier;
 use MyInvoice\Service\IpMatcher;
 use MyInvoice\Service\Pdf\InvoicePdfRenderer;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -22,6 +23,7 @@ final class PdfAction
         private readonly InvoiceRepository $repo,
         private readonly ActivityLogger $logger,
         private readonly IpMatcher $ipMatcher,
+        private readonly ExchangeRateApplier $rateApplier,
     ) {}
 
     public function __invoke(Request $request, Response $response, array $args): Response
@@ -35,6 +37,15 @@ final class PdfAction
         $invoice = $this->repo->find($id);
         if (!SupplierGuard::owns($request, $invoice)) {
             return Json::error($response, 'not_found', 'Faktura nenalezena.', 404);
+        }
+
+        // Backfill kurzu (cache → ČNB → last known) pro EUR / cizí měnu bez kurzu —
+        // PDF musí přepočet vždy obsahovat, pokud je kurz dostupný.
+        if (
+            (string) ($invoice['currency'] ?? 'CZK') !== 'CZK'
+            && empty($invoice['exchange_rate'])
+        ) {
+            $this->rateApplier->ensureRate($id);
         }
 
         $q = $request->getQueryParams();

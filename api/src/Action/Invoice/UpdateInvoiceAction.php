@@ -9,6 +9,7 @@ use MyInvoice\Http\SupplierGuard;
 use MyInvoice\Middleware\AuthMiddleware;
 use MyInvoice\Repository\InvoiceRepository;
 use MyInvoice\Service\ActivityLogger;
+use MyInvoice\Service\Currency\ExchangeRateApplier;
 use MyInvoice\Service\Invoice\InvoiceCalculator;
 use MyInvoice\Service\Invoice\InvoiceDefaults;
 use MyInvoice\Service\IpMatcher;
@@ -26,6 +27,7 @@ final class UpdateInvoiceAction
         private readonly ActivityLogger $logger,
         private readonly IpMatcher $ipMatcher,
         private readonly StatsRecomputer $stats,
+        private readonly ExchangeRateApplier $rateApplier,
     ) {}
 
     public function __invoke(Request $request, Response $response, array $args): Response
@@ -69,6 +71,29 @@ final class UpdateInvoiceAction
         $this->repo->updateDraft($id, $body);
         $this->repo->replaceItems($id, (array) ($body['items'] ?? []));
         $this->calc->recompute($id);
+
+        // Exchange rate logika:
+        //   1. User manuálně nastavil kurz v payloadu → uložit (ruční override má prioritu)
+        //   2. Vystavená faktura (force-edit) — NIKDY auto-přefetch (klient ji už má)
+        //   3. Draft + změna currency NEBO issue_date → fetch nový kurz
+        //   4. Jinak → kurz beze změny, jen ensureRate pro backfill když chybí
+        $wasDraft = $existing['status'] === 'draft';
+        $currencyChanged = (int) ($existing['currency_id'] ?? 0) !== (int) ($body['currency_id'] ?? 0);
+        $issueDateChanged = (string) ($existing['issue_date'] ?? '') !== (string) ($body['issue_date'] ?? '');
+        $rateMeta = null;
+
+        $userRate = $body['exchange_rate'] ?? null;
+        $userRateProvided = $userRate !== null && $userRate !== '' && is_numeric($userRate) && (float) $userRate > 0;
+
+        if ($userRateProvided) {
+            // Manuální override z UI — preserve s issue_date jako rate_date
+            $this->repo->setExchangeRate($id, (float) $userRate, (string) $body['issue_date']);
+        } elseif ($wasDraft && ($currencyChanged || $issueDateChanged)) {
+            $rateMeta = $this->rateApplier->applyToInvoice($id);
+        } else {
+            $this->rateApplier->ensureRate($id);
+        }
+
         // Force update vystavené faktury → revenue cache musí přijmout nové total/currency
         $this->stats->recomputeForInvoiceId($id);
 
@@ -76,6 +101,10 @@ final class UpdateInvoiceAction
         $action = ($existing['status'] !== 'draft') ? 'invoice.force_updated' : 'invoice.updated';
         $this->logger->log($action, $user['id'] ?? null, 'invoice', $id, null, $ip, $request->getHeaderLine('User-Agent'));
 
-        return Json::ok($response, $this->repo->find($id));
+        $invoice = $this->repo->find($id);
+        if ($rateMeta !== null) {
+            $invoice['_meta'] = ['exchange_rate' => $rateMeta];
+        }
+        return Json::ok($response, $invoice);
     }
 }

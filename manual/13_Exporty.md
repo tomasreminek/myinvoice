@@ -154,7 +154,61 @@ MyInvoice mapuje DPH sazby na **Pohoda kódy klasifikace**:
 
 Pokud klient potřebuje přesně tvoji PDF verzi, použij paralelně **PDF ZIP**.
 
-## 13.5 Filtrování
+## 13.5 Faktury v cizí měně (EUR / USD / …) — kurz CZK v exportu
+
+Pro faktury v jiné měně než CZK MyInvoice automaticky přidává do exportů
+**kurz ČNB** zafixovaný na faktuře — viz [§ 9.4.2](09_Faktura_editor.md#942-faktura-v-cizí-měně-eur--usd---přepočet-do-czk).
+
+### 13.5.1 ISDOC — `LocalCurrencyCode` + `CurrencyCode` + `CurrRate`
+
+ISDOC export pro EUR fakturu obsahuje:
+
+```xml
+<LocalCurrencyCode>CZK</LocalCurrencyCode>     <!-- účetní měna dodavatele -->
+<CurrencyCode>EUR</CurrencyCode>               <!-- faktur. měna -->
+<CurrRate>24.360000</CurrRate>                 <!-- CZK / 1 EUR -->
+<RefCurrRate>1</RefCurrRate>
+```
+
+Všechny `<…Amount currencyID="EUR">…</…Amount>` zůstávají v EUR. Účetní soft
+si CZK ekvivalent dopočítá z `CurrRate`. Pokud faktura nemá zafixovaný kurz
+(starší data před verzí 1.4 nebo selhal fetch z ČNB), `CurrRate=1` — uživatel
+musí v účetním softu kurz ručně doplnit.
+
+### 13.5.2 Pohoda XML — `inv:foreignCurrency` + `inv:homeCurrency`
+
+Pohoda XML pro EUR fakturu obsahuje **oba** bloky v `<inv:invoiceSummary>`:
+
+```xml
+<inv:homeCurrency>                    <!-- CZK z přepočtu kurzem -->
+  <typ:priceHigh>1218.00</typ:priceHigh>
+  <typ:priceHighVAT>255.78</typ:priceHighVAT>
+  <typ:priceSum>4055.94</typ:priceSum>
+</inv:homeCurrency>
+<inv:foreignCurrency>                 <!-- originál v EUR + kurz -->
+  <typ:currency><typ:ids>EUR</typ:ids></typ:currency>
+  <typ:rate>24.360000</typ:rate>
+  <typ:amount>1</typ:amount>
+  <typ:priceHigh>50.00</typ:priceHigh>
+  <typ:priceHighVAT>10.50</typ:priceHighVAT>
+  <typ:priceSum>166.50</typ:priceSum>
+</inv:foreignCurrency>
+```
+
+Položky (`<inv:invoiceItem>`) pro non-CZK fakturu používají `<inv:foreignCurrency>`
+místo `<inv:homeCurrency>` — Pohoda po importu položkové CZK hodnoty dopočítá
+z globálního kurzu.
+
+### 13.5.3 Tipy
+
+- **Konzultuj kurz s účetní** — některé účetní software (zejm. Pohoda) má
+  vlastní kurzovní lístek a může při importu kurz přepsat. Pokud chceš mít
+  v Pohodě přesný kurz z faktury, nech přepis vypnutý.
+- **Backfill při exportu** — když exportuješ starší fakturu bez kurzu, MyInvoice
+  ho automaticky doplní (cache → ČNB → poslední známý). Když ČNB nedostupné
+  a žádný kurz není, v ISDOC dostaneš `CurrRate=1` s varováním.
+
+## 13.6 Filtrování
 
 | Volba | Použití |
 |---|---|
@@ -162,7 +216,7 @@ Pokud klient potřebuje přesně tvoji PDF verzi, použij paralelně **PDF ZIP**
 | Stav = Zaplacené | Pro výplatu DPH (jen reálně přijaté) |
 | Typ = Dobropisy | Pro samostatnou agendu oprav |
 
-## 13.6 Tipy
+## 13.7 Tipy
 
 - **Měsíční rytmus** — exportuj 1. den následujícího měsíce za ten skončený
   měsíc.

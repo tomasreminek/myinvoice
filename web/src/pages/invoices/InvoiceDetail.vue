@@ -8,11 +8,16 @@ import { useAuthStore } from '@/stores/auth'
 import { useHotkey } from '@/composables/useHotkey'
 import { useToast } from '@/composables/useToast'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toast = useToast()
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.user?.role === 'admin')
+
+function formatRate(rate: number): string {
+  const tag = locale.value === 'cs' ? 'cs-CZ' : 'en-US'
+  return rate.toLocaleString(tag, { minimumFractionDigits: 3, maximumFractionDigits: 4 })
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -710,6 +715,56 @@ async function updateApprovalStatus() {
           <div v-if="invoice.advance_paid_amount > 0" class="flex justify-between text-base font-semibold">
             <dt>{{ t('invoice.amount_to_pay') }}</dt>
             <dd class="font-mono">{{ formatMoney(invoice.amount_to_pay, invoice.currency) }}</dd>
+          </div>
+          <div v-if="invoice.czk_recap" class="text-xs text-neutral-500 pt-2 border-t border-neutral-200 mt-2">
+            {{ t('invoice.czk_recap.rate_info', {
+              rate: formatRate(invoice.czk_recap.rate),
+              currency: invoice.currency,
+              date: formatDate(invoice.czk_recap.rate_date),
+            }) }}
+          </div>
+        </dl>
+      </div>
+    </div>
+
+    <!-- CZK přepočet pro faktury v cizí měně -->
+    <div v-if="invoice.czk_recap" class="bg-white border border-neutral-200 rounded-lg p-5 shadow-sm">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 mb-3">
+        {{ t('invoice.czk_recap.title') }}
+      </h3>
+      <p class="text-xs text-neutral-500 mb-3">
+        {{ t('invoice.czk_recap.rate_info', {
+          rate: formatRate(invoice.czk_recap.rate),
+          currency: invoice.currency,
+          date: formatDate(invoice.czk_recap.rate_date),
+        }) }}
+        <span v-if="invoice.czk_recap.fallback_used" class="text-warning-600">
+          ({{ t('invoice.czk_recap.fallback_note') }})
+        </span>
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <dl class="space-y-1 text-sm">
+          <div v-for="b in invoice.czk_recap.breakdown" :key="'cb'+b.rate" class="flex justify-between">
+            <dt class="text-neutral-500">{{ t('invoice.totals.base') }} {{ formatPercent(b.rate) }}</dt>
+            <dd class="font-mono">{{ formatMoney(b.base_czk, 'CZK') }}</dd>
+          </div>
+          <div v-for="b in invoice.czk_recap.breakdown" :key="'cv'+b.rate" v-show="b.vat_czk > 0" class="flex justify-between">
+            <dt class="text-neutral-500">{{ t('invoice.totals.vat') }} {{ formatPercent(b.rate) }}</dt>
+            <dd class="font-mono">{{ formatMoney(b.vat_czk, 'CZK') }}</dd>
+          </div>
+        </dl>
+        <dl class="space-y-1 text-sm">
+          <div class="flex justify-between font-semibold">
+            <dt>{{ t('invoice.totals.without_vat') }}</dt>
+            <dd class="font-mono">{{ formatMoney(invoice.czk_recap.total_without_vat_czk, 'CZK') }}</dd>
+          </div>
+          <div class="flex justify-between font-semibold">
+            <dt>{{ t('invoice.totals.vat_total') }}</dt>
+            <dd class="font-mono">{{ formatMoney(invoice.czk_recap.total_vat_czk, 'CZK') }}</dd>
+          </div>
+          <div class="flex justify-between border-t border-neutral-300 pt-2 mt-2 text-lg font-semibold text-primary-700">
+            <dt>{{ t('invoice.totals.total') }}</dt>
+            <dd class="font-mono">{{ formatMoney(invoice.czk_recap.total_with_vat_czk, 'CZK') }}</dd>
           </div>
         </dl>
       </div>

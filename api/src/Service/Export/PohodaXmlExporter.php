@@ -187,6 +187,13 @@ final class PohodaXmlExporter
 
             $inv->appendChild($hdr);
 
+            // Foreign currency? Pak summary musí mít jak homeCurrency (CZK z czk_recap),
+            // tak foreignCurrency (EUR + kurz). Položky pro foreign-currency fakturu jdou
+            // do inv:foreignCurrency (Pohoda si CZK dopočítá z global kurzu).
+            $invCurrency = (string) ($invoice['currency'] ?? 'CZK');
+            $isForeign = $invCurrency !== 'CZK';
+            $exchangeRate = $isForeign ? (float) ($invoice['exchange_rate'] ?? 1.0) : 1.0;
+
             // Detail (položky)
             $detail = $dom->createElementNS(self::NS_INV, 'inv:invoiceDetail');
             foreach ($invoice['items'] ?? [] as $item) {
@@ -210,12 +217,15 @@ final class PohodaXmlExporter
                 $vatRate->appendChild($dom->createTextNode($rateCode));
                 $row->appendChild($vatRate);
 
-                $home = $dom->createElementNS(self::NS_INV, 'inv:homeCurrency');
-                $this->el($dom, $home, self::NS_TYP, 'typ:unitPrice',     $this->fmt((float) $item['unit_price_without_vat']));
-                $this->el($dom, $home, self::NS_TYP, 'typ:price',         $this->fmt((float) ($item['total_without_vat'] ?? 0)));
-                $this->el($dom, $home, self::NS_TYP, 'typ:priceVAT',      $this->fmt((float) ($item['total_vat'] ?? 0)));
-                $this->el($dom, $home, self::NS_TYP, 'typ:priceSum',      $this->fmt((float) ($item['total_with_vat'] ?? 0)));
-                $row->appendChild($home);
+                // CZK invoice → homeCurrency; foreign → foreignCurrency (s EUR cenami,
+                // Pohoda dopočítá CZK z kurzu uvedeného v summary)
+                $blockName = $isForeign ? 'inv:foreignCurrency' : 'inv:homeCurrency';
+                $block = $dom->createElementNS(self::NS_INV, $blockName);
+                $this->el($dom, $block, self::NS_TYP, 'typ:unitPrice', $this->fmt((float) $item['unit_price_without_vat']));
+                $this->el($dom, $block, self::NS_TYP, 'typ:price',     $this->fmt((float) ($item['total_without_vat'] ?? 0)));
+                $this->el($dom, $block, self::NS_TYP, 'typ:priceVAT',  $this->fmt((float) ($item['total_vat'] ?? 0)));
+                $this->el($dom, $block, self::NS_TYP, 'typ:priceSum',  $this->fmt((float) ($item['total_with_vat'] ?? 0)));
+                $row->appendChild($block);
 
                 $detail->appendChild($row);
             }
@@ -226,32 +236,59 @@ final class PohodaXmlExporter
             $this->el($dom, $sum, self::NS_INV, 'inv:roundingDocument', 'none');
             $this->el($dom, $sum, self::NS_INV, 'inv:roundingVAT', 'none');
 
-            $homeCurrency = $dom->createElementNS(self::NS_INV, 'inv:homeCurrency');
             $totals = $invoice['totals'] ?? [];
-            // Per VAT rate breakdown
             $bd = $invoice['vat_breakdown'] ?? [];
-            $sumNone = 0.0; $sumLow = 0.0; $sumHigh = 0.0;
-            $vatLow  = 0.0; $vatHigh = 0.0;
-            foreach ($bd as $b) {
-                $r = (float) $b['rate'];
-                if ($r >= 20.5)      { $sumHigh += (float) $b['base']; $vatHigh += (float) $b['vat']; }
-                elseif ($r >= 11.5)  { $sumLow  += (float) $b['base']; $vatLow  += (float) $b['vat']; }
-                else                 { $sumNone += (float) $b['base']; }
-            }
-            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceNone', $this->fmt($sumNone));
-            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceLow',  $this->fmt($sumLow));
-            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceLowVAT', $this->fmt($vatLow));
-            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceLowSum', $this->fmt($sumLow + $vatLow));
-            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceHigh', $this->fmt($sumHigh));
-            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceHighVAT', $this->fmt($vatHigh));
-            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceHighSum', $this->fmt($sumHigh + $vatHigh));
+
+            // homeCurrency = vždy v CZK. Pro CZK fakturu z totals/vat_breakdown,
+            // pro foreign fakturu z czk_recap (přepočet ČNB kurzem). Když czk_recap
+            // chybí (foreign faktura bez kurzu — legacy), padáme na 1:1 z totals
+            // (uživatel by měl doplnit kurz; export jinak nemá CZK účetní hodnoty).
+            $homeCurrency = $dom->createElementNS(self::NS_INV, 'inv:homeCurrency');
+            $homeBuckets  = $isForeign && !empty($invoice['czk_recap'])
+                ? $this->bucketsFromCzkRecap($invoice['czk_recap'])
+                : $this->bucketsFromBreakdown($bd);
+            $homeTotal = $isForeign && !empty($invoice['czk_recap'])
+                ? (float) $invoice['czk_recap']['total_with_vat_czk']
+                : (float) ($totals['with_vat'] ?? 0);
+
+            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceNone',    $this->fmt($homeBuckets['none']));
+            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceLow',     $this->fmt($homeBuckets['low']));
+            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceLowVAT',  $this->fmt($homeBuckets['lowVat']));
+            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceLowSum',  $this->fmt($homeBuckets['low'] + $homeBuckets['lowVat']));
+            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceHigh',    $this->fmt($homeBuckets['high']));
+            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceHighVAT', $this->fmt($homeBuckets['highVat']));
+            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceHighSum', $this->fmt($homeBuckets['high'] + $homeBuckets['highVat']));
             $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:price3', '0.00');
             $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:price3VAT', '0.00');
             $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:price3Sum', '0.00');
             $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:round',
-                ($r = (float) ($totals['rounding'] ?? 0)) !== 0.0 ? $this->fmt($r) : '0.00');
-            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceSum', $this->fmt((float) ($totals['with_vat'] ?? 0)));
+                ($r = (float) ($totals['rounding'] ?? 0)) !== 0.0 && !$isForeign ? $this->fmt($r) : '0.00');
+            $this->el($dom, $homeCurrency, self::NS_TYP, 'typ:priceSum', $this->fmt($homeTotal));
             $sum->appendChild($homeCurrency);
+
+            // foreignCurrency — jen pro non-CZK faktury. Obsahuje měnu, kurz, množství
+            // a totals v cizí měně. Pohoda po importu má jak CZK účetní hodnoty
+            // (homeCurrency), tak originál v cizí měně (foreignCurrency).
+            if ($isForeign) {
+                $foreign = $dom->createElementNS(self::NS_INV, 'inv:foreignCurrency');
+                $cur = $dom->createElementNS(self::NS_TYP, 'typ:currency');
+                $this->el($dom, $cur, self::NS_TYP, 'typ:ids', $invCurrency);
+                $foreign->appendChild($cur);
+                $this->el($dom, $foreign, self::NS_TYP, 'typ:rate', number_format($exchangeRate, 6, '.', ''));
+                $this->el($dom, $foreign, self::NS_TYP, 'typ:amount', '1');
+
+                $fb = $this->bucketsFromBreakdown($bd);
+                $this->el($dom, $foreign, self::NS_TYP, 'typ:priceNone',    $this->fmt($fb['none']));
+                $this->el($dom, $foreign, self::NS_TYP, 'typ:priceLow',     $this->fmt($fb['low']));
+                $this->el($dom, $foreign, self::NS_TYP, 'typ:priceLowVAT',  $this->fmt($fb['lowVat']));
+                $this->el($dom, $foreign, self::NS_TYP, 'typ:priceLowSum',  $this->fmt($fb['low'] + $fb['lowVat']));
+                $this->el($dom, $foreign, self::NS_TYP, 'typ:priceHigh',    $this->fmt($fb['high']));
+                $this->el($dom, $foreign, self::NS_TYP, 'typ:priceHighVAT', $this->fmt($fb['highVat']));
+                $this->el($dom, $foreign, self::NS_TYP, 'typ:priceHighSum', $this->fmt($fb['high'] + $fb['highVat']));
+                $this->el($dom, $foreign, self::NS_TYP, 'typ:priceSum',     $this->fmt((float) ($totals['with_vat'] ?? 0)));
+                $sum->appendChild($foreign);
+            }
+
             $inv->appendChild($sum);
         }
 
@@ -305,5 +342,49 @@ final class PohodaXmlExporter
     private function fmt(float $value): string
     {
         return number_format($value, 2, '.', '');
+    }
+
+    /**
+     * @param list<array{rate: float, base: float, vat: float}> $breakdown
+     * @return array{none: float, low: float, lowVat: float, high: float, highVat: float}
+     */
+    private function bucketsFromBreakdown(array $breakdown): array
+    {
+        $out = ['none' => 0.0, 'low' => 0.0, 'lowVat' => 0.0, 'high' => 0.0, 'highVat' => 0.0];
+        foreach ($breakdown as $b) {
+            $r = (float) $b['rate'];
+            if ($r >= 20.5) {
+                $out['high']    += (float) $b['base'];
+                $out['highVat'] += (float) $b['vat'];
+            } elseif ($r >= 11.5) {
+                $out['low']    += (float) $b['base'];
+                $out['lowVat'] += (float) $b['vat'];
+            } else {
+                $out['none'] += (float) $b['base'];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * @param array{breakdown: list<array{rate: float, base_czk: float, vat_czk: float}>} $recap
+     * @return array{none: float, low: float, lowVat: float, high: float, highVat: float}
+     */
+    private function bucketsFromCzkRecap(array $recap): array
+    {
+        $out = ['none' => 0.0, 'low' => 0.0, 'lowVat' => 0.0, 'high' => 0.0, 'highVat' => 0.0];
+        foreach ($recap['breakdown'] ?? [] as $b) {
+            $r = (float) $b['rate'];
+            if ($r >= 20.5) {
+                $out['high']    += (float) $b['base_czk'];
+                $out['highVat'] += (float) $b['vat_czk'];
+            } elseif ($r >= 11.5) {
+                $out['low']    += (float) $b['base_czk'];
+                $out['lowVat'] += (float) $b['vat_czk'];
+            } else {
+                $out['none'] += (float) $b['base_czk'];
+            }
+        }
+        return $out;
     }
 }

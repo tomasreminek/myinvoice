@@ -242,10 +242,58 @@
           <td class="tot-num nowrap">{{ invoice.amount_to_pay|number_format(2, decimal_sep, thousand_sep) }} {{ invoice.currency }}</td>
         </tr>
         {% endif %}
+        {% if invoice.czk_recap %}
+        <tr class="rate-note">
+          <td colspan="2" class="rate-note-cell">
+            {{ t('Kurz ČNB', 'CNB rate') }}:
+            {{ invoice.czk_recap.rate|number_format(3, decimal_sep, thousand_sep) }}&nbsp;CZK / 1&nbsp;{{ invoice.currency }}
+            ({{ invoice.czk_recap.rate_date }})
+          </td>
+        </tr>
+        {% endif %}
       </table>
     </td>
   </tr>
 </table>
+
+{% if invoice.czk_recap %}
+<table class="czk-recap">
+  <tr>
+    <td colspan="2" class="czk-recap-title">
+      {{ t('Přepočet do CZK', 'Conversion to CZK') }}
+      <span class="czk-recap-rate">
+        {{ t('kurz ČNB', 'CNB rate') }}:
+        {{ invoice.czk_recap.rate|number_format(3, decimal_sep, thousand_sep) }}&nbsp;CZK / 1&nbsp;{{ invoice.currency }}
+        ({{ invoice.czk_recap.rate_date }})
+      </span>
+    </td>
+  </tr>
+  {% for b in invoice.czk_recap.breakdown %}
+  <tr>
+    <td class="tot-label">{{ t('Základ', 'Base') }} {{ b.rate|number_format(b.rate == b.rate|round(0) ? 0 : 2, decimal_sep, thousand_sep) }}&nbsp;%</td>
+    <td class="tot-num nowrap">{{ b.base_czk|number_format(2, decimal_sep, thousand_sep) }} CZK</td>
+  </tr>
+  {% if b.vat_czk > 0 %}
+  <tr>
+    <td class="tot-label">{{ t('DPH', 'VAT') }} {{ b.rate|number_format(b.rate == b.rate|round(0) ? 0 : 2, decimal_sep, thousand_sep) }}&nbsp;%</td>
+    <td class="tot-num nowrap">{{ b.vat_czk|number_format(2, decimal_sep, thousand_sep) }} CZK</td>
+  </tr>
+  {% endif %}
+  {% endfor %}
+  <tr class="subtotal">
+    <td class="tot-label">{{ t('Celkem bez DPH', 'Total without VAT') }}</td>
+    <td class="tot-num nowrap">{{ invoice.czk_recap.total_without_vat_czk|number_format(2, decimal_sep, thousand_sep) }} CZK</td>
+  </tr>
+  <tr class="subtotal">
+    <td class="tot-label">{{ t('DPH celkem', 'Total VAT') }}</td>
+    <td class="tot-num nowrap">{{ invoice.czk_recap.total_vat_czk|number_format(2, decimal_sep, thousand_sep) }} CZK</td>
+  </tr>
+  <tr class="grand">
+    <td class="tot-label">{{ t('Celkem', 'Total') }}</td>
+    <td class="tot-num nowrap">{{ invoice.czk_recap.total_with_vat_czk|number_format(2, decimal_sep, thousand_sep) }} CZK</td>
+  </tr>
+</table>
+{% endif %}
 
 {% if invoice.note_below_items %}
 <div class="note">{{ invoice.note_below_items|nl2br }}</div>

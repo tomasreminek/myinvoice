@@ -10,6 +10,7 @@ use MyInvoice\Middleware\AuthMiddleware;
 use MyInvoice\Repository\ClientRepository;
 use MyInvoice\Repository\InvoiceRepository;
 use MyInvoice\Service\ActivityLogger;
+use MyInvoice\Service\Currency\ExchangeRateApplier;
 use MyInvoice\Service\Invoice\InvoiceCalculator;
 use MyInvoice\Service\Invoice\InvoiceDefaults;
 use MyInvoice\Service\IpMatcher;
@@ -26,6 +27,7 @@ final class CreateInvoiceAction
         private readonly InvoiceCalculator $calc,
         private readonly ActivityLogger $logger,
         private readonly IpMatcher $ipMatcher,
+        private readonly ExchangeRateApplier $rateApplier,
     ) {}
 
     public function __invoke(Request $request, Response $response): Response
@@ -53,6 +55,7 @@ final class CreateInvoiceAction
         $id = $this->repo->createDraft($body, $userId);
         $this->repo->replaceItems($id, (array) ($body['items'] ?? []));
         $this->calc->recompute($id);
+        $rateMeta = $this->rateApplier->applyToInvoice($id);
 
         $ip = $this->ipMatcher->clientIpFromRequest($request->getServerParams());
         $this->logger->log('invoice.created', $userId, 'invoice', $id, [
@@ -60,6 +63,10 @@ final class CreateInvoiceAction
             'type'      => $body['invoice_type'] ?? 'invoice',
         ], $ip, $request->getHeaderLine('User-Agent'));
 
-        return Json::ok($response, $this->repo->find($id), 201);
+        $invoice = $this->repo->find($id);
+        if ($rateMeta !== null) {
+            $invoice['_meta'] = ['exchange_rate' => $rateMeta];
+        }
+        return Json::ok($response, $invoice, 201);
     }
 }

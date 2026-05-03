@@ -223,6 +223,62 @@ table.totals-table tr.to-pay td {
     color: #3B2D83;
     padding: 2.5mm 3mm;
 }
+table.totals-table tr.rate-note td.rate-note-cell {
+    text-align: right;
+    font-size: 8.5pt;
+    color: #5A5470;
+    font-style: italic;
+    padding-top: 1.5mm;
+}
+
+/* ─── CZK přepočet (cizí měna) ─── */
+table.czk-recap {
+    width: 60%;
+    margin-left: auto;
+    margin-top: 5mm;
+    border-collapse: collapse;
+    font-size: 9pt;
+    background: #F2F2F2;
+}
+table.czk-recap td {
+    padding: 1.4mm 3mm;
+    background: #F2F2F2;
+}
+table.czk-recap td.czk-recap-title {
+    font-size: 9.5pt;
+    font-weight: bold;
+    color: #3B2D83;
+    border-bottom: 0.5pt solid #C9C0E9;
+    padding-bottom: 1.5mm;
+}
+.czk-recap-rate {
+    font-weight: normal;
+    color: #5A5470;
+    font-size: 8.5pt;
+    margin-left: 2mm;
+}
+table.czk-recap td.tot-label {
+    color: #5A5470;
+    text-align: right;
+    font-weight: bold;
+}
+table.czk-recap td.tot-num {
+    text-align: right;
+    font-family: 'DejaVu Sans Mono', monospace;
+    width: 32mm;
+    font-weight: bold;
+}
+table.czk-recap tr.subtotal td {
+    border-top: 0.5pt solid #D2CCDF;
+    background: #EAEAEA;
+}
+table.czk-recap tr.grand td {
+    background: #DCDCDC;
+    color: #3B2D83;
+    font-size: 10.5pt;
+    font-weight: bold;
+    padding: 2mm 3mm;
+}
 
 /* ─── QR + bank ─── */
 table.bank-frame {

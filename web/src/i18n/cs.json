@@ -281,6 +281,19 @@
       "advance_deduction": "Odečet zálohy",
       "amount_due": "K úhradě"
     },
+    "czk_recap": {
+      "title": "Přepočet do CZK",
+      "rate_info": "Kurz ČNB: {rate} CZK / 1 {currency} ke dni {date}",
+      "fallback_note": "kurz z dříve dostupného dne",
+      "warning_fallback": "ČNB neposkytla kurz pro datum vystavení — použit kurz {rate} CZK/{currency} ze dne {date}.",
+      "warning_last_known": "ČNB nedostupná — použit poslední známý kurz {rate} CZK/{currency} ze dne {date}."
+    },
+    "vat_rate_label": {
+      "exempt": "0 % (osvob.)",
+      "reverse_charge": "0 % (RC)"
+    },
+    "exchange_rate_label": "Kurz CZK / 1 {currency}",
+    "exchange_rate_hint": "Kurz se po prvním stažení z ČNB automaticky nemění. Můžeš ho ručně upravit — uložená hodnota se použije v PDF i exportech.",
     "bank_not_set": "Bankovní spojení pro {currency} není v nastavení vyplněné",
     "work_report": "Výkaz víceprací",
     "wr_add": "Přidat výkaz",

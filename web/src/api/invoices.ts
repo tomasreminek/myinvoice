@@ -101,6 +101,35 @@ export interface Invoice {
   items: InvoiceItem[]
   vat_breakdown: VatBreakdownRow[]
   totals: InvoiceTotals
+  exchange_rate?: number | null
+  exchange_rate_date?: string | null
+  czk_recap?: CzkRecap | null
+  _meta?: {
+    exchange_rate?: ExchangeRateMeta
+  }
+}
+
+export interface CzkRecap {
+  rate: number
+  rate_date: string
+  fallback_used: boolean
+  breakdown: Array<{
+    rate: number
+    base_czk: number
+    vat_czk: number
+    with_vat_czk: number
+  }>
+  total_without_vat_czk: number
+  total_vat_czk: number
+  total_with_vat_czk: number
+}
+
+export interface ExchangeRateMeta {
+  currency: string
+  rate: number
+  rate_date: string
+  fallback_used: boolean
+  source: 'cache' | 'fresh' | 'last_known'
 }
 
 export interface InvoiceListItem {
@@ -156,6 +185,7 @@ export interface InvoicePayload {
   note_above_items?: string | null
   note_below_items?: string | null
   advance_paid_amount?: number
+  exchange_rate?: number | null
   items: Array<{
     description: string
     quantity: number
