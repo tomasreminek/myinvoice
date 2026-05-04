@@ -136,7 +136,7 @@ const statusBadge = (s: string) => {
       </div>
 
       <div class="overflow-x-auto">
-        <table class="w-full text-sm">
+        <table class="w-full text-sm table-sticky-first">
           <thead>
             <tr class="text-left text-xs uppercase tracking-wide text-neutral-500 border-b border-neutral-200">
               <th class="py-2 pr-3">{{ t('imports.col_file') }}</th>

@@ -15,6 +15,7 @@ import { projectsApi, type Project } from '@/api/projects'
 import { codebooksApi, type VatRate, type Currency } from '@/api/codebooks'
 import { formatMoney, formatPercent } from '@/composables/useFormat'
 import { apiErrorMessage } from '@/api/errors'
+import SearchableSelect from '@/components/ui/SearchableSelect.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -624,11 +625,13 @@ async function deleteDraft() {
             </div>
             <div>
               <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('invoice.client') }} *</label>
-              <select v-model="form.client_id" @change="onClientChange" required
-                class="w-full h-10 px-3 border border-neutral-300 rounded-md bg-white">
-                <option :value="null" disabled>{{ t('invoice.select_client') }}</option>
-                <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.company_name }}</option>
-              </select>
+              <SearchableSelect
+                :model-value="form.client_id"
+                @update:model-value="(v) => { form.client_id = v; onClientChange() }"
+                :options="clients.map(c => ({ value: c.id, label: c.company_name, secondary: c.ic ?? undefined }))"
+                :placeholder="t('invoice.select_client')"
+                :clearable="false"
+              />
               <!-- VIES výsledek -->
               <div v-if="viesResult" class="mt-1 text-xs flex items-start gap-1.5">
                 <template v-if="viesResult.status === 'checking'">
@@ -652,14 +655,13 @@ async function deleteDraft() {
             </div>
             <div>
               <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('invoice.project') }}</label>
-              <select v-model="form.project_id" @change="onProjectChange"
-                class="w-full h-10 px-3 border border-neutral-300 rounded-md bg-white"
-                :disabled="!form.client_id">
-                <option :value="null">{{ t('invoice.no_project') }}</option>
-                <option v-for="p in projects" :key="p.id" :value="p.id">
-                  {{ p.name }}<span v-if="p.status !== 'active'"> ({{ p.status }})</span>
-                </option>
-              </select>
+              <SearchableSelect
+                :model-value="form.project_id"
+                @update:model-value="(v) => { form.project_id = v; onProjectChange() }"
+                :options="projects.map(p => ({ value: p.id, label: p.name + (p.status !== 'active' ? ` (${p.status})` : ''), secondary: p.project_number ?? undefined }))"
+                :placeholder="t('invoice.no_project')"
+                :disabled="!form.client_id"
+              />
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -724,7 +726,9 @@ async function deleteDraft() {
             {{ t('invoice.add_item') }}
           </button>
         </div>
-        <table class="w-full text-sm">
+        <!-- Desktop: tabulka -->
+        <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-sm table-sticky-first">
           <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
             <tr>
               <th class="px-3 py-2 text-left font-medium w-8"></th>
@@ -778,6 +782,58 @@ async function deleteDraft() {
             </tr>
           </tbody>
         </table>
+        </div>
+
+        <!-- Mobile: stack karet (každé pole na vlastním řádku, čitelné inputy) -->
+        <div class="md:hidden divide-y divide-neutral-100">
+          <div v-if="form.items.length === 0" class="px-4 py-6 text-center text-neutral-400 text-sm">
+            {{ t('invoice.no_items') }} <button type="button" @click="addItem" class="text-primary-600 hover:underline">{{ t('invoice.add_first') }}</button>
+          </div>
+          <div v-for="(item, i) in form.items" :key="`m-${i}`" class="p-3 space-y-2">
+            <div class="flex items-center justify-between text-xs text-neutral-500">
+              <span class="font-mono">#{{ i + 1 }}</span>
+              <div class="flex items-center gap-2">
+                <button type="button" @click="moveUp(i)" :disabled="i === 0" class="cursor-pointer w-8 h-8 inline-flex items-center justify-center border border-neutral-200 rounded hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed">▲</button>
+                <button type="button" @click="moveDown(i)" :disabled="i === form.items.length - 1" class="cursor-pointer w-8 h-8 inline-flex items-center justify-center border border-neutral-200 rounded hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed">▼</button>
+                <button type="button" @click="removeItem(i)" class="cursor-pointer w-8 h-8 inline-flex items-center justify-center border border-danger-500/40 text-danger-500 hover:bg-danger-50 rounded text-lg leading-none">×</button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-neutral-600 mb-1">{{ t('invoice.items_table.description') }}</label>
+              <textarea v-model="item.description" rows="2" :placeholder="t('invoice.items_table.description')"
+                class="w-full px-3 py-2 border border-neutral-200 rounded text-sm resize-y min-h-[44px] focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-medium text-neutral-600 mb-1">{{ t('invoice.items_table.qty') }}</label>
+                <input v-model.number="item.quantity" type="number" inputmode="decimal" step="0.001" min="0"
+                  class="w-full h-10 px-3 border border-neutral-200 rounded text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-neutral-600 mb-1">{{ t('invoice.items_table.unit') }}</label>
+                <input v-model="item.unit"
+                  class="w-full h-10 px-3 border border-neutral-200 rounded text-sm" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-medium text-neutral-600 mb-1">{{ t('invoice.items_table.unit_price') }}</label>
+                <input v-model.number="item.unit_price_without_vat" type="number" inputmode="decimal" step="0.01" min="0"
+                  class="w-full h-10 px-3 border border-neutral-200 rounded text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-neutral-600 mb-1">{{ t('invoice.totals.vat') }}</label>
+                <select v-model.number="item.vat_rate_id" class="w-full h-10 px-2 border border-neutral-200 rounded text-sm bg-white">
+                  <option v-for="r in vatRates" :key="r.id" :value="r.id">{{ vatRateLabel(r) }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex items-baseline justify-between pt-1 border-t border-neutral-100">
+              <span class="text-xs font-medium text-neutral-500 uppercase tracking-wide">{{ t('invoice.totals.total') }}</span>
+              <span class="font-mono font-semibold">{{ formatMoney(itemTotal(item), form.currency) }}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Sumace + poznámky -->
@@ -859,7 +915,9 @@ async function deleteDraft() {
         <div v-if="wrOpen" class="p-5 space-y-3">
           <input v-model="wrTitle" type="text" :placeholder="t('invoice.wr_title')"
             class="w-full h-10 px-3 border border-neutral-300 rounded-md text-sm" />
-          <table class="w-full text-sm">
+          <!-- Desktop: tabulka -->
+          <div class="hidden md:block overflow-x-auto">
+          <table class="w-full text-sm table-sticky-first">
             <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
               <tr>
                 <th class="px-3 py-2 text-left font-medium">{{ t('invoice.wr_description') }}</th>
@@ -910,6 +968,54 @@ async function deleteDraft() {
               </tr>
             </tbody>
           </table>
+          </div>
+
+          <!-- Mobile: stack karet -->
+          <div class="md:hidden space-y-2">
+            <div v-for="(it, i) in wrItems" :key="`m-${i}`"
+              class="border border-neutral-200 rounded-md p-3 space-y-2 bg-neutral-50/30">
+              <div class="flex items-center justify-between text-xs text-neutral-500">
+                <span class="font-mono">#{{ i + 1 }}</span>
+                <button type="button" @click="removeWrItem(i)" class="cursor-pointer w-8 h-8 inline-flex items-center justify-center border border-danger-500/40 text-danger-500 hover:bg-danger-50 rounded text-lg leading-none">×</button>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-neutral-600 mb-1">{{ t('invoice.wr_description') }}</label>
+                <input v-model="it.description" type="text" class="w-full h-10 px-3 border border-neutral-200 rounded text-sm bg-white" />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-medium text-neutral-600 mb-1">{{ t('invoice.wr_date') }}</label>
+                  <input v-model="it.work_date" type="date" class="w-full h-10 px-3 border border-neutral-200 rounded text-sm font-mono bg-white" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-neutral-600 mb-1">{{ t('invoice.wr_hours') }}</label>
+                  <input v-model.number="it.hours" type="number" inputmode="decimal" step="0.25" min="0" class="w-full h-10 px-3 border border-neutral-200 rounded text-right font-mono text-sm bg-white" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2 items-end">
+                <div>
+                  <label class="block text-xs font-medium text-neutral-600 mb-1">{{ t('invoice.wr_rate') }}</label>
+                  <input v-model.number="it.rate" type="number" inputmode="decimal" step="1" min="0" class="w-full h-10 px-3 border border-neutral-200 rounded text-right font-mono text-sm bg-white" />
+                </div>
+                <div class="text-right pb-2">
+                  <div class="text-xs font-medium text-neutral-500 uppercase tracking-wide">{{ t('invoice.wr_total') }}</div>
+                  <div class="font-mono text-sm font-semibold">
+                    {{ formatMoney((Number(it.hours) || 0) * (Number(it.rate) || 0), form.currency) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button type="button" @click="addWrItem"
+              class="cursor-pointer w-full h-10 text-sm border border-primary-500/40 text-primary-700 hover:bg-primary-50 font-medium rounded-md inline-flex items-center justify-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+              {{ t('invoice.wr_add_row') }}
+            </button>
+            <div v-if="wrItems.length > 0" class="bg-neutral-50 rounded-md px-3 py-2 flex items-center justify-between font-semibold text-sm">
+              <span class="font-mono">Σ {{ wrTotalHours.toFixed(2) }} h</span>
+              <span class="font-mono">{{ formatMoney(wrTotalAmount, form.currency) }}</span>
+            </div>
+          </div>
+
           <p class="text-xs text-neutral-500">
             {{ t('invoice.wr_hint', { title: wrTitle, hours: wrTotalHours.toFixed(2), rate: wrItems[0]?.rate || 0, currency: form.currency }) }}
           </p>

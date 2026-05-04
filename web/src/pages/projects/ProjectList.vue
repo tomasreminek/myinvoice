@@ -6,6 +6,7 @@ import { projectsApi, type Project, type ProjectStats } from '@/api/projects'
 import { clientsApi, type Client } from '@/api/clients'
 import TableSkeleton from '@/components/ui/TableSkeleton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import SearchableSelect from '@/components/ui/SearchableSelect.vue'
 import TopProjectsBarChart from '@/components/charts/TopProjectsBarChart.vue'
 import ProjectStatusChart from '@/components/charts/ProjectStatusChart.vue'
 import { formatMoney, formatDate } from '@/composables/useFormat'
@@ -135,15 +136,14 @@ watch([status, clientId, sort], () => load(true))
           <option value="paused">{{ t('project.status_paused') }}</option>
           <option value="closed">{{ t('project.status_closed') }}</option>
         </select>
-        <select v-model="clientId"
-          class="h-9 px-3 border border-neutral-300 rounded-md text-sm bg-white min-w-48">
-          <option value="">{{ t('project.all_clients') }}</option>
-          <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.company_name }}</option>
-        </select>
-        <button v-if="clientId !== ''" @click="clientId = ''"
-          class="cursor-pointer h-9 px-2 text-xs text-neutral-500 hover:text-neutral-700">
-          {{ t('project.clear_filter') }}
-        </button>
+        <div class="min-w-48 flex-1 max-w-xs">
+          <SearchableSelect
+            :model-value="clientId === '' ? null : clientId"
+            @update:model-value="(v) => clientId = v === null ? '' : v"
+            :options="clients.map(c => ({ value: c.id, label: c.company_name, secondary: c.ic ?? undefined }))"
+            :placeholder="t('project.all_clients')"
+          />
+        </div>
         <select v-model="sort" class="h-9 px-3 border border-neutral-300 rounded-md text-sm bg-white ml-auto"
           :title="t('common.sort_by')">
           <option value="name">{{ t('common.sort_name') }}</option>
@@ -157,7 +157,8 @@ watch([status, clientId, sort], () => load(true))
 
       <EmptyState v-else-if="!items.length" :title="t('project.no_data')" />
 
-      <table v-else class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div v-else class="hidden md:block overflow-x-auto"><table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
           <tr>
             <th class="text-left px-4 py-2.5 font-medium">{{ t('project.name') }}</th>
@@ -199,7 +200,40 @@ watch([status, clientId, sort], () => load(true))
             <td class="px-4 py-3 text-right font-mono whitespace-nowrap">{{ p.hourly_rate.toLocaleString('cs') }} {{ p.currency }}/h</td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
+
+      <!-- Mobile: karty -->
+      <div v-if="items.length" class="md:hidden divide-y divide-neutral-100">
+        <div
+          v-for="p in items"
+          :key="`m-${p.id}`"
+          @click="router.push(`/projects/${p.id}`)"
+          class="cursor-pointer hover:bg-neutral-50 transition px-4 py-3"
+        >
+          <div class="flex items-baseline justify-between gap-2">
+            <div class="font-medium text-neutral-900 truncate">{{ p.name }}</div>
+            <div class="font-mono text-sm whitespace-nowrap">
+              <span v-if="p.revenue && p.revenue > 0">{{ formatMoney(p.revenue, p.currency) }}</span>
+              <span v-else class="text-neutral-300">—</span>
+            </div>
+          </div>
+          <div class="text-xs text-neutral-500 mt-0.5 truncate">{{ p.client_company_name }}</div>
+          <div class="flex items-center justify-between gap-2 mt-2 text-xs">
+            <span class="px-2 py-0.5 rounded"
+              :class="{
+                'bg-emerald-50 text-emerald-700': p.status === 'active',
+                'bg-amber-50 text-amber-700': p.status === 'paused',
+                'bg-neutral-100 text-neutral-600': p.status === 'closed',
+              }">
+              {{ p.status === 'active' ? t('common.active') : p.status === 'paused' ? t('project.status_paused') : t('project.status_closed') }}
+            </span>
+            <div class="flex items-center gap-2 text-neutral-600">
+              <span v-if="p.last_invoice_date">{{ formatDate(p.last_invoice_date) }}</span>
+              <span class="font-mono whitespace-nowrap">{{ p.hourly_rate.toLocaleString('cs') }} {{ p.currency }}/h</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div v-if="items.length" class="px-4 py-3 border-t border-neutral-200 flex items-center justify-between text-sm">
         <span class="text-neutral-500">{{ t('common.loaded_count', { loaded: items.length, total }) }}</span>

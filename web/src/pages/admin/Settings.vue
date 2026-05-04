@@ -230,7 +230,8 @@ async function removeCurrency(c: CurrencyAccount) {
         <header class="px-5 py-3 border-b border-neutral-200">
           <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500">{{ t('settings.currencies_banks') }}</h2>
         </header>
-        <table class="w-full text-sm">
+        <div class="overflow-x-auto">
+        <table class="w-full text-sm table-sticky-first">
           <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
             <tr>
               <th class="px-3 py-2 text-left font-medium">{{ t('settings.currency') }}</th>
@@ -268,6 +269,7 @@ async function removeCurrency(c: CurrencyAccount) {
             </tr>
           </tbody>
         </table>
+        </div>
         <div class="px-5 py-3 border-t border-neutral-200 bg-neutral-50 text-xs text-neutral-600 flex flex-wrap gap-3 items-center">
           <span>{{ t('settings.add_another_account') }}</span>
           <button v-for="code in [...new Set(currencies.map(c => c.code))]" :key="code"

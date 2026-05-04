@@ -230,7 +230,8 @@ function openInvoice(id: number) {
           <div v-if="!summary.overdue.length" class="p-6 text-center text-sm text-neutral-500">
             {{ t('dashboard.overdue_none') }}
           </div>
-          <table v-else class="w-full text-sm">
+          <!-- Desktop: tabulka -->
+          <div v-else class="hidden md:block overflow-x-auto"><table class="w-full text-sm table-sticky-first">
             <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
               <tr>
                 <th class="px-3 py-2 text-left font-medium">{{ t('type.invoice') }}</th>
@@ -251,7 +252,24 @@ function openInvoice(id: number) {
                 </td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
+
+          <!-- Mobile: kompaktní list -->
+          <div v-if="summary.overdue.length" class="md:hidden divide-y divide-neutral-100">
+            <div v-for="i in summary.overdue" :key="`m-${i.id}`" @click="openInvoice(i.id)"
+              class="cursor-pointer hover:bg-neutral-50 px-3 py-2.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <div class="font-medium text-neutral-900 truncate">{{ i.client_company_name }}</div>
+                <div class="font-mono text-sm whitespace-nowrap">{{ formatMoney(i.amount_to_pay, i.currency) }}</div>
+              </div>
+              <div class="flex items-baseline justify-between gap-2 mt-0.5">
+                <span class="font-mono text-xs text-neutral-500">{{ i.varsymbol }}</span>
+                <span class="text-xs px-1.5 py-0.5 rounded bg-danger-50 text-danger-500 font-medium whitespace-nowrap">
+                  +{{ i.days_overdue }}d
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Nezaplacené -->
@@ -265,7 +283,8 @@ function openInvoice(id: number) {
           <div v-if="!summary.unpaid_upcoming.length" class="p-6 text-center text-sm text-neutral-500">
             {{ t('dashboard.unpaid_none') }}
           </div>
-          <table v-else class="w-full text-sm">
+          <!-- Desktop: tabulka -->
+          <div v-else class="hidden md:block overflow-x-auto"><table class="w-full text-sm table-sticky-first">
             <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
               <tr>
                 <th class="px-3 py-2 text-left font-medium">{{ t('type.invoice') }}</th>
@@ -282,7 +301,22 @@ function openInvoice(id: number) {
                 <td class="px-3 py-2 text-center text-xs">{{ formatDate(i.due_date) }}</td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
+
+          <!-- Mobile: kompaktní list -->
+          <div v-if="summary.unpaid_upcoming.length" class="md:hidden divide-y divide-neutral-100">
+            <div v-for="i in summary.unpaid_upcoming" :key="`m-${i.id}`" @click="openInvoice(i.id)"
+              class="cursor-pointer hover:bg-neutral-50 px-3 py-2.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <div class="font-medium text-neutral-900 truncate">{{ i.client_company_name }}</div>
+                <div class="font-mono text-sm whitespace-nowrap">{{ formatMoney(i.amount_to_pay, i.currency) }}</div>
+              </div>
+              <div class="flex items-baseline justify-between gap-2 mt-0.5 text-xs text-neutral-500">
+                <span class="font-mono">{{ i.varsymbol }}</span>
+                <span class="font-mono">{{ formatDate(i.due_date) }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -291,7 +325,9 @@ function openInvoice(id: number) {
         <header class="px-5 py-3 border-b border-neutral-200">
           <h3 class="font-semibold">{{ t('dashboard.top_clients_year', { year: summary.year }) }}</h3>
         </header>
-        <table class="w-full text-sm">
+        <!-- Desktop: tabulka -->
+        <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-sm table-sticky-first">
           <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
             <tr>
               <th class="px-4 py-2 text-left font-medium w-8">#</th>
@@ -316,6 +352,28 @@ function openInvoice(id: number) {
             </tr>
           </tbody>
         </table>
+        </div>
+
+        <!-- Mobile: kompaktní list s share bar -->
+        <div class="md:hidden divide-y divide-neutral-100">
+          <div v-for="(c, i) in summary.top_clients_ytd" :key="`m-${c.client_id}-${c.currency}`"
+            @click="router.push(`/clients/${c.client_id}`)"
+            class="cursor-pointer hover:bg-neutral-50 px-3 py-2.5">
+            <div class="flex items-baseline justify-between gap-2">
+              <div class="flex items-baseline gap-2 min-w-0">
+                <span class="text-neutral-400 font-mono text-xs whitespace-nowrap">{{ i + 1 }}.</span>
+                <span class="font-medium text-neutral-900 truncate">{{ c.company_name }}</span>
+              </div>
+              <div class="font-mono text-sm whitespace-nowrap">{{ formatMoney(c.total, c.currency) }}</div>
+            </div>
+            <div class="flex items-center gap-2 mt-1.5">
+              <div class="h-1.5 flex-1 bg-neutral-100 rounded-full overflow-hidden">
+                <div class="h-full bg-primary-500 rounded-full" :style="{ width: (c.total / summary.top_clients_ytd[0].total * 100) + '%' }"></div>
+              </div>
+              <span class="text-xs text-neutral-500 font-mono whitespace-nowrap">{{ c.invoice_count }}×</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

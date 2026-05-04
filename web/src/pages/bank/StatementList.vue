@@ -100,7 +100,9 @@ async function onFileSelected(e: Event) {
     </div>
 
     <div v-else class="bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden">
-      <table class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div class="hidden md:block overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
           <tr>
             <th class="px-3 py-2 text-left font-medium">Datum</th>
@@ -127,6 +129,30 @@ async function onFileSelected(e: Event) {
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Mobile: karty -->
+      <div class="md:hidden divide-y divide-neutral-100">
+        <div v-for="s in statements" :key="`m-${s.id}`"
+          @click="router.push(`/bank/${s.id}`)"
+          class="cursor-pointer hover:bg-neutral-50 px-3 py-3">
+          <div class="flex items-baseline justify-between gap-2">
+            <div class="font-medium text-neutral-900">
+              {{ formatDate(s.statement_date) }}<span v-if="s.statement_number" class="text-neutral-400 ml-1">#{{ s.statement_number }}</span>
+            </div>
+            <div class="font-mono text-sm font-semibold whitespace-nowrap">{{ formatMoney(s.curr_balance, 'CZK') }}</div>
+          </div>
+          <div class="font-mono text-xs text-neutral-500 mt-0.5">{{ s.account_number }}</div>
+          <div class="text-xs text-neutral-500 truncate mt-0.5">{{ s.file_name }}</div>
+          <div class="flex items-baseline justify-between gap-2 mt-2">
+            <span class="text-xs text-neutral-500">{{ s.transaction_count }} transakcí</span>
+            <span class="text-xs px-2 py-0.5 rounded font-medium whitespace-nowrap"
+              :class="s.matched_count === s.transaction_count ? 'bg-success-50 text-success-600' : 'bg-warning-50 text-warning-600'">
+              {{ s.matched_count }} / {{ s.transaction_count }} {{ t('bank.matched') }}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

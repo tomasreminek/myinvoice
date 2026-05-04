@@ -195,7 +195,9 @@ async function deleteCountry(c: Country) {
         </button>
       </div>
       <div class="bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden">
-        <table class="w-full text-sm">
+        <!-- Desktop: tabulka -->
+        <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-sm table-sticky-first">
           <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
             <tr>
               <th class="px-3 py-2 text-left font-medium">{{ t('codebooks.code') }}</th>
@@ -236,6 +238,42 @@ async function deleteCountry(c: Country) {
             </tr>
           </tbody>
         </table>
+        </div>
+
+        <!-- Mobile: karty -->
+        <div class="md:hidden divide-y divide-neutral-100">
+          <div v-for="c in currencies" :key="`m-${c.id}`" class="p-3 space-y-1.5">
+            <div class="flex items-baseline justify-between gap-2">
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono font-semibold">{{ c.code }}</span>
+                <span class="text-xs text-neutral-500">{{ c.symbol }}</span>
+                <span class="text-xs text-neutral-500">·</span>
+                <span class="text-xs text-neutral-500">{{ c.label }}</span>
+              </div>
+              <span class="font-mono text-xs text-neutral-500">{{ c.decimals }}d</span>
+            </div>
+            <div class="font-mono text-xs text-neutral-600 truncate">
+              <span v-if="c.account_number">{{ c.account_number }}<span v-if="c.bank_code"> / {{ c.bank_code }}</span></span>
+              <span v-else-if="c.iban">{{ c.iban }}</span>
+              <span v-else class="text-neutral-400">—</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-xs">
+              <span>
+                <span v-if="c.is_default" class="text-primary-600">✓ {{ t('common.default') }}</span>
+                <span v-if="c.is_default && c.is_active" class="text-neutral-400 mx-1.5">·</span>
+                <span v-if="c.is_active" class="text-success-600">✓ {{ t('settings.active') }}</span>
+              </span>
+              <div class="flex gap-2">
+                <button @click="editCurrency(c)" class="cursor-pointer h-8 px-3 text-xs border border-primary-500/40 text-primary-700 hover:bg-primary-50 rounded">{{ t('common.edit') }}</button>
+                <button @click="deleteCurrency(c)" :disabled="(c.invoices_count ?? 0) > 0"
+                  class="cursor-pointer h-8 px-3 text-xs border border-danger-500/40 text-danger-500 hover:bg-danger-50 disabled:opacity-30 disabled:cursor-not-allowed rounded"
+                  :title="(c.invoices_count ?? 0) > 0 ? t('codebooks.in_use_currency', { n: c.invoices_count }) : t('common.delete')">
+                  {{ t('common.delete') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -249,7 +287,9 @@ async function deleteCountry(c: Country) {
         </button>
       </div>
       <div class="bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden">
-        <table class="w-full text-sm">
+        <!-- Desktop: tabulka -->
+        <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-sm table-sticky-first">
           <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
             <tr>
               <th class="px-3 py-2 text-center font-medium">{{ t('codebooks.country') }}</th>
@@ -282,6 +322,37 @@ async function deleteCountry(c: Country) {
             </tr>
           </tbody>
         </table>
+        </div>
+
+        <!-- Mobile: karty -->
+        <div class="md:hidden divide-y divide-neutral-100">
+          <div v-for="v in vatRates" :key="`m-${v.id}`" class="p-3 space-y-1.5">
+            <div class="flex items-baseline justify-between gap-2">
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono text-xs">{{ v.country }}</span>
+                <span class="font-mono text-sm font-semibold">{{ v.code }}</span>
+                <span class="text-sm text-neutral-700">{{ v.label_cs }}</span>
+              </div>
+              <span class="font-mono font-semibold">{{ v.rate_percent }} %</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-xs">
+              <span class="text-neutral-500">
+                <span v-if="v.is_default" class="text-primary-600">✓ {{ t('codebooks.is_default') }}</span>
+                <span v-if="v.is_default && v.is_reverse_charge" class="text-neutral-400 mx-1.5">·</span>
+                <span v-if="v.is_reverse_charge" class="text-warning-600">⇄ RC</span>
+              </span>
+              <span class="text-neutral-500">{{ v.valid_from }}<span v-if="v.valid_to"> – {{ v.valid_to }}</span></span>
+            </div>
+            <div class="flex justify-end gap-2">
+              <button @click="editVat(v)" class="cursor-pointer h-8 px-3 text-xs border border-primary-500/40 text-primary-700 hover:bg-primary-50 rounded">{{ t('common.edit') }}</button>
+              <button @click="deleteVat(v)" :disabled="(v.items_count ?? 0) > 0"
+                class="cursor-pointer h-8 px-3 text-xs border border-danger-500/40 text-danger-500 hover:bg-danger-50 disabled:opacity-30 disabled:cursor-not-allowed rounded"
+                :title="(v.items_count ?? 0) > 0 ? t('codebooks.in_use_vat', { n: v.items_count }) : t('common.delete')">
+                {{ t('common.delete') }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -295,7 +366,9 @@ async function deleteCountry(c: Country) {
         </button>
       </div>
       <div class="bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden">
-        <table class="w-full text-sm">
+        <!-- Desktop: tabulka -->
+        <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-sm table-sticky-first">
           <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
             <tr>
               <th class="px-3 py-2 text-center font-medium">{{ t('codebooks.iso2') }}</th>
@@ -324,6 +397,32 @@ async function deleteCountry(c: Country) {
             </tr>
           </tbody>
         </table>
+        </div>
+
+        <!-- Mobile: karty -->
+        <div class="md:hidden divide-y divide-neutral-100">
+          <div v-for="c in countries" :key="`m-${c.id}`" class="p-3 space-y-1.5">
+            <div class="flex items-baseline justify-between gap-2">
+              <div class="flex items-baseline gap-2">
+                <span class="font-mono font-semibold">{{ c.iso2 }}</span>
+                <span class="font-mono text-xs text-neutral-500">{{ c.iso3 }}</span>
+                <span class="text-sm">{{ c.name_cs }}</span>
+              </div>
+              <span v-if="c.is_eu" class="text-xs px-2 py-0.5 rounded bg-primary-100 text-primary-700">EU</span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs text-neutral-500 truncate">{{ c.name_en }}</span>
+              <div class="flex gap-2">
+                <button @click="editCountry(c)" class="cursor-pointer h-8 px-3 text-xs border border-primary-500/40 text-primary-700 hover:bg-primary-50 rounded">{{ t('common.edit') }}</button>
+                <button @click="deleteCountry(c)" :disabled="(c.uses_count ?? 0) > 0"
+                  class="cursor-pointer h-8 px-3 text-xs border border-danger-500/40 text-danger-500 hover:bg-danger-50 disabled:opacity-30 disabled:cursor-not-allowed rounded"
+                  :title="(c.uses_count ?? 0) > 0 ? t('codebooks.in_use_country', { n: c.uses_count }) : t('common.delete')">
+                  {{ t('common.delete') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 

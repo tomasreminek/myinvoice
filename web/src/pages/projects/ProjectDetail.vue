@@ -84,8 +84,8 @@ async function deleteProject() {
   <div v-if="loading" class="text-center text-neutral-500 py-12">{{ t('common.loading') }}</div>
 
   <div v-else-if="project" class="space-y-6">
-    <div class="flex items-start justify-between gap-4">
-      <div>
+    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
+      <div class="min-w-0">
         <RouterLink :to="`/clients/${project.client_id}`" class="text-sm text-neutral-600 hover:text-neutral-900">
           ← {{ project.client_company_name }}
         </RouterLink>
@@ -105,7 +105,7 @@ async function deleteProject() {
           </span>
         </div>
       </div>
-      <div class="flex flex-wrap gap-2 justify-end">
+      <div class="flex flex-wrap gap-2 md:justify-end">
         <RouterLink v-if="project.status === 'active'"
           :to="`/invoices/new?client_id=${project.client_id}&project_id=${project.id}`"
           class="cursor-pointer px-3 h-9 text-sm bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-md inline-flex items-center gap-1.5">
@@ -193,7 +193,8 @@ async function deleteProject() {
       <div v-else-if="!invoices.length" class="p-8 text-center text-neutral-500 text-sm">
         {{ t('common.no_data') }}
       </div>
-      <table v-else class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div v-else class="hidden md:block overflow-x-auto"><table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
           <tr>
             <th class="text-left px-4 py-2.5 font-medium">{{ t('invoice.varsymbol') }}</th>
@@ -226,7 +227,38 @@ async function deleteProject() {
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
+
+      <!-- Mobile: karty -->
+      <div v-if="invoices.length" class="md:hidden divide-y divide-neutral-100">
+        <div v-for="inv in invoices" :key="`m-${inv.id}`"
+          @click="router.push(`/invoices/${inv.id}`)"
+          class="cursor-pointer hover:bg-neutral-50 px-4 py-3"
+          :class="invoiceRowClass(inv.due_date, inv.status)">
+          <div class="flex items-baseline justify-between gap-2">
+            <div class="font-mono font-medium text-neutral-900">{{ inv.varsymbol || `#${inv.id}` }}</div>
+            <div class="font-mono text-sm font-semibold whitespace-nowrap">
+              {{ formatMoney(inv.amount_to_pay || inv.total_with_vat, inv.currency) }}
+            </div>
+          </div>
+          <div class="flex items-baseline justify-between gap-2 mt-1 text-xs text-neutral-500">
+            <span>{{ typeLabel(inv.invoice_type) }}</span>
+            <span>
+              <span>{{ formatDate(inv.issue_date) }}</span>
+              <span class="text-neutral-400 mx-1"> → </span>
+              <span :class="isOverdue(inv.due_date, inv.status) ? 'text-danger-500 font-medium' : ''">
+                {{ formatDate(inv.due_date) }}
+              </span>
+            </span>
+          </div>
+          <div class="mt-2">
+            <span class="text-xs px-2 py-0.5 rounded" :class="statusBadgeClass(inv.status)">
+              {{ statusLabel(inv.status) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div v-if="invoices.length" class="px-5 py-3 border-t border-neutral-200 flex items-center justify-between text-sm">
         <span class="text-neutral-500">{{ t('common.loaded_count', { loaded: invoices.length, total: invoicesTotal }) }}</span>
         <button v-if="invoicesPage < invoicesPages" @click="loadMoreInvoices" :disabled="invoicesLoadingMore"

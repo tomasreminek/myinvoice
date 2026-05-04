@@ -7,7 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.6.0] — 2026-05-04
+## [1.7.0] — 2026-05-04
+
+### Added
+
+- **Plošný mobilní redesign tabulek** — pod `md:` breakpointem (<768 px) se každá
+  list-tabulka skryje a zobrazí jako stack karet; nad `md:` zůstává původní
+  tabulkový layout beze změny. Pokrývá:
+  - **List views** — `/invoices` (s zachováním měsíčních skupin),
+    `/clients`, `/projects`, `/bank` (statementy).
+  - **Detail nested views** — `ClientDetail` → Zakázky + Faktury,
+    `ProjectDetail` → Faktury, `InvoiceDetail` → Položky + Výkaz víceprací.
+  - **Edit forms** — `InvoiceEditor` → Položky + Výkaz víceprací jako stack
+    karet s jedním inputem na řádek (popis, množství/jednotka, cena/DPH,
+    sazba/celkem), tap targets ≥ 40 px, `inputmode="decimal"` na číslech
+    pro mobilní num klávesnici.
+  - **Dashboard widgety** — „Po splatnosti", „Nezaplacené", „Top klienti"
+    jako kompaktní list-rows (klient + amount + dny po splatnosti badge,
+    share bar inline).
+  - **Bank/StatementDetail transakce** — kartové view s amount nahoře,
+    status badge, full-width tlačítka **Spárovat / Ignorovat / Zrušit
+    spárování** (klíčový workflow byl předtím schovaný za horizontálním
+    scrollem a nedostupný z mobilu).
+  - **Admin views** — `Users` (s 2FA / Upravit / Deaktivovat tlačítky),
+    `Approvals` (jako tap-card na detail faktury), `ActivityLog`,
+    `EmailTemplates`, `Codebooks` (Měny / Sazby DPH / Země).
+- **`<SearchableSelect>` komponenta** — `web/src/components/ui/SearchableSelect.vue`,
+  generic Vue 3 SFC. Combobox pattern (input + dropdown) místo native
+  `<select>`. Substring search napříč `label` + volitelným `secondary`
+  polem (např. firma + IČ jako secondary). Klávesy ↑↓ Enter Esc, click
+  mimo zavře, clearable × tlačítko, ARIA role=combobox/listbox/option.
+  Nasazeno v: filter klienta na `/invoices` a `/projects`, výběr klienta
+  i zakázky v `InvoiceEditor` (s zachováním `onClientChange` /
+  `onProjectChange` callbacků).
+- **CSS helper `.table-sticky-first`** v `web/src/styles/main.css` — pro
+  tabulky, které na mobilu zůstávají (nemají kartové view). První sloupec
+  drží `position: sticky; left: 0`, takže při horizontálním scrollu vlevo
+  vidíte identifikátor řádku. Background dědí z `<tr>`, takže hover/status
+  barvy fungují; default `white` je nastaven přes `:where()` se specificitou 0,
+  aby Tailwind utility (`bg-warning-50`, `hover:bg-neutral-50`, …) na `<tr>`
+  stále vyhrály.
+
+### Changed
+
+- **Tabulkové wrappery napříč aplikací** — `overflow-hidden` na karetních
+  obalech tabulek nahrazeno za vnitřní `overflow-x-auto` div. Důvod: pod
+  `md:` se některé tabulky (např. `InvoiceList` 703 px na 444 px wrapperu)
+  s `overflow-hidden` natvrdo ořezávaly, část sloupců (K ÚHRADĚ, STAV) byla
+  kompletně nedostupná. Stránky bez `overflow-hidden` zase rozkládaly
+  horizontální scroll na celý viewport (854 px doc na 492 px viewport).
+  Nový pattern: scroll uzavřený dovnitř karty, layout stránky beze změny.
+- **Detail page headers responsivní** — `ClientDetail`, `ProjectDetail`,
+  `InvoiceDetail` přepnuty z `flex items-start justify-between` na
+  `flex flex-col md:flex-row md:justify-between`. Title + breadcrumb /
+  badges nahoře, akční tlačítka (Upravit / Archivovat / Klonovat / PDF /
+  Odeslat …) wrap do gridu pod nimi. Žádné kolize titlu s tlačítky na
+  malých displayech.
+
 
 ### Added
 

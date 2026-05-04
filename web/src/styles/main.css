@@ -74,3 +74,33 @@ html, body {
 }
 
 #app { min-height: 100vh; }
+
+@layer components {
+  /*
+   * Sticky první sloupec pro list-tabulky.
+   * Why: na mobilu (<768px) jsou listové tabulky širší než viewport;
+   * uzavíráme scroll dovnitř karty a první sloupec držíme zafixovaný,
+   * aby uživatel při scrollu doprava věděl, ke kterému řádku patří hodnoty.
+   * How to apply: na <table> přidat class="table-sticky-first",
+   * wrapper kolem <table> musí mít overflow-x-auto.
+   */
+  .table-sticky-first thead th:first-child,
+  .table-sticky-first tbody td:first-child {
+    position: sticky;
+    left: 0;
+  }
+  .table-sticky-first thead th:first-child {
+    background-color: var(--color-neutral-50);
+    z-index: 2;
+  }
+  .table-sticky-first tbody td:first-child {
+    background-color: inherit;
+    z-index: 1;
+  }
+  /* Default bg pro řádky aby td:first-child{bg:inherit} nebyl průhledný.
+     :where() drží specificitu na 0, takže Tailwind utility (bg-warning-50,
+     hover:bg-neutral-50, …) na <tr> stále vyhrávají. */
+  :where(.table-sticky-first tbody tr) {
+    background-color: white;
+  }
+}

@@ -440,8 +440,8 @@ async function updateApprovalStatus() {
 
   <div v-else-if="invoice" class="max-w-5xl space-y-4">
     <RouterLink to="/invoices" class="text-sm text-neutral-600 hover:text-neutral-900">{{ t('invoice.back_to_list') }}</RouterLink>
-    <div class="flex items-start justify-between gap-4">
-      <h1 class="text-2xl font-semibold flex items-center gap-3 flex-wrap">
+    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
+      <h1 class="text-2xl font-semibold flex items-center gap-3 flex-wrap min-w-0">
         <span v-if="invoice.varsymbol" class="font-mono">{{ invoice.varsymbol }}</span>
         <span v-else class="text-neutral-400 font-mono">{{ t('invoice.draft_id', { id: invoice.id }) }}</span>
         <span class="text-xs px-2 py-0.5 rounded font-normal" :class="statusBadgeClass(invoice.status)">
@@ -458,7 +458,7 @@ async function updateApprovalStatus() {
               : t('invoice.approval.status_' + approvalStatus) }}
         </span>
       </h1>
-      <div class="flex flex-wrap gap-2 justify-end">
+      <div class="flex flex-wrap gap-2 md:justify-end">
         <!-- Draft akce -->
         <RouterLink v-if="isDraft" :to="`/invoices/${invoice.id}/edit`"
           class="cursor-pointer px-3 h-9 text-sm border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50 inline-flex items-center gap-1.5">
@@ -686,7 +686,9 @@ async function updateApprovalStatus() {
       <div class="px-5 py-3 border-b border-neutral-200">
         <h3 class="text-sm font-semibold uppercase tracking-wide text-neutral-500">{{ t('invoice.items') }}</h3>
       </div>
-      <table class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div class="hidden md:block overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
           <tr>
             <th class="px-4 py-2 text-left font-medium">{{ t('invoice.items_table.description') }}</th>
@@ -710,6 +712,28 @@ async function updateApprovalStatus() {
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Mobile: stack karet -->
+      <div class="md:hidden divide-y divide-neutral-100">
+        <div v-for="item in invoice.items" :key="`m-${item.id}`" class="p-3 space-y-1.5">
+          <div class="text-sm whitespace-pre-wrap text-neutral-900">{{ item.description }}</div>
+          <div class="flex items-baseline justify-between text-xs text-neutral-500">
+            <span>
+              <span class="font-mono text-neutral-700">{{ item.quantity }}</span>
+              <span class="ml-1">{{ item.unit }}</span>
+              <span class="text-neutral-400 mx-1.5">·</span>
+              <span class="font-mono">{{ formatMoney(item.unit_price_without_vat, invoice.currency) }}</span>
+              <span class="text-neutral-400 mx-1.5">·</span>
+              <span>{{ formatPercent(item.vat_rate_snapshot ?? 0) }}</span>
+            </span>
+          </div>
+          <div class="flex items-baseline justify-between pt-1 text-sm">
+            <span class="text-xs text-neutral-500">{{ t('invoice.items_table.with_vat') }}</span>
+            <span class="font-mono font-semibold">{{ formatMoney(item.total_with_vat ?? 0, invoice.currency) }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Sumace -->
@@ -813,7 +837,9 @@ async function updateApprovalStatus() {
         <h3 class="text-sm font-semibold uppercase tracking-wide text-neutral-500">{{ t('invoice.work_report') }}</h3>
         <span class="text-sm text-neutral-700">{{ workReport.title }}</span>
       </header>
-      <table class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div class="hidden md:block overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
           <tr>
             <th class="text-left px-5 py-2 font-medium">{{ t('invoice.wr_description') }}</th>
@@ -839,6 +865,29 @@ async function updateApprovalStatus() {
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Mobile: stack karet -->
+      <div class="md:hidden divide-y divide-neutral-100">
+        <div v-for="(it, i) in workReport.items" :key="`m-${i}`" class="p-3 space-y-1">
+          <div class="text-sm whitespace-pre-wrap text-neutral-800">{{ it.description }}</div>
+          <div class="flex items-baseline justify-between text-xs text-neutral-500">
+            <span v-if="wrHasDates" class="font-mono">{{ formatDate(it.work_date) }}</span>
+            <span v-else></span>
+            <span>
+              <span class="font-mono text-neutral-700">{{ Number(it.hours).toLocaleString('cs', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} h</span>
+              <span class="text-neutral-400 mx-1.5">·</span>
+              <span class="font-mono">{{ formatMoney(it.rate, invoice.currency) }}</span>
+              <span class="text-neutral-400 mx-1.5">·</span>
+              <span class="font-mono font-semibold text-neutral-900">{{ formatMoney(Number(it.hours) * Number(it.rate), invoice.currency) }}</span>
+            </span>
+          </div>
+        </div>
+        <div class="bg-neutral-50 p-3 flex items-center justify-between font-semibold">
+          <span class="font-mono">Σ {{ workReport.total_hours.toLocaleString('cs', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} h</span>
+          <span class="font-mono">{{ formatMoney(workReport.total_amount, invoice.currency) }}</span>
+        </div>
+      </div>
     </div>
 
     <!-- Stav schválení výkazu — viditelné jen pokud projekt vyžaduje + výkaz existuje -->

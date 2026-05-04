@@ -115,7 +115,9 @@ const counts = computed(() => ({
     </div>
 
     <div v-else class="bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden">
-      <table class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div class="hidden md:block overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
           <tr>
             <th class="px-3 py-2 text-left font-medium">{{ t('invoice.varsymbol') }}</th>
@@ -166,6 +168,40 @@ const counts = computed(() => ({
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Mobile: karty -->
+      <div class="md:hidden divide-y divide-neutral-100">
+        <RouterLink v-for="r in filteredItems" :key="`m-${r.id}`" :to="`/invoices/${r.id}`"
+          class="block hover:bg-neutral-50 px-3 py-3">
+          <div class="flex items-baseline justify-between gap-2">
+            <div class="font-mono font-medium text-primary-700">{{ r.varsymbol || '#' + r.id }}</div>
+            <div class="font-mono text-sm font-semibold whitespace-nowrap">{{ formatMoney(r.amount_to_pay, r.currency) }}</div>
+          </div>
+          <div class="text-sm text-neutral-900 truncate mt-0.5">{{ r.client_company_name }}</div>
+          <div v-if="r.project_name" class="text-xs text-neutral-500 truncate">{{ r.project_name }}</div>
+          <div class="flex items-baseline justify-between gap-2 mt-2">
+            <span class="text-xs px-2 py-0.5 rounded font-medium" :class="badgeClass(r)">
+              {{ statusLabel(r) }}
+            </span>
+            <span v-if="r.approval_reminder_count > 0" class="text-xs text-warning-600 font-semibold">
+              ⚠ {{ r.approval_reminder_count }}×
+            </span>
+          </div>
+          <div class="text-xs text-neutral-500 mt-1">
+            <span v-if="r.approval_requested_at">
+              {{ formatDate(r.approval_requested_at) }}
+              <span v-if="daysSince(r.approval_requested_at) !== null" class="text-neutral-400">
+                ({{ t('approval_inbox.days_ago', { n: daysSince(r.approval_requested_at) }) }})
+              </span>
+            </span>
+            <span v-else>—</span>
+          </div>
+          <div v-if="r.approval_rejection_reason" class="text-xs text-neutral-600 mt-1 truncate">
+            {{ r.approval_rejection_reason }}
+          </div>
+        </RouterLink>
+      </div>
     </div>
   </div>
 </template>
