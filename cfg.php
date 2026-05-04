@@ -18,6 +18,16 @@ if (getenv('APP_URL')) {
     $config['app']['url'] = getenv('APP_URL');
 }
 
+// Cloudflare Turnstile CAPTCHA
+if (getenv('CAPTCHA_SITE_KEY') && getenv('CAPTCHA_SECRET_KEY')) {
+    $config['captcha']['provider']   = 'turnstile';
+    $config['captcha']['site_key']   = getenv('CAPTCHA_SITE_KEY');
+    $config['captcha']['secret_key'] = getenv('CAPTCHA_SECRET_KEY');
+} else {
+    // Bez platných klíčů CAPTCHA vypnout — jinak Turnstile s 'CHANGE-ME' blokuje login
+    $config['captcha']['provider'] = 'none';
+}
+
 // Nastavení e-mailů (SMTP) z Coolify
 if (getenv('SMTP_HOST')) {
     $config['smtp']['host'] = getenv('SMTP_HOST');
