@@ -53,8 +53,8 @@ return [
         'encryption'     => 'tls',                   // 'ssl' | 'tls' | '' (žádné, jen lokální dev nebo plain relay)
 
         // Authentication
-        'auth_enabled'   => true,                    // false pro plain relay (např. interní MTA bez auth)
-        'auth_type'      => 'LOGIN',                 // 'LOGIN' | 'PLAIN' | 'CRAM-MD5' | 'XOAUTH2'
+        'auth_enabled'   => false,                    // false pro plain relay (např. interní MTA bez auth)
+        'auth_type'      => 'PLAIN',                 // 'LOGIN' | 'PLAIN' | 'CRAM-MD5' | 'XOAUTH2'
         'user'           => 'CHANGE-ME',
         'pass'           => 'CHANGE-ME',
 
@@ -180,7 +180,7 @@ return [
         'window_seconds'  => [300, 900, 3600],       // okna v sekundách: 5 min, 15 min, 60 min
     ],
     'captcha' => [
-        'provider'    => 'turnstile',                // 'turnstile' (Cloudflare) | 'none' (vypnout)
+        'provider'    => 'none',                // 'turnstile' (Cloudflare) | 'none' (vypnout)
         'site_key'    => 'CHANGE-ME',                // public, vkládá se do HTML <div data-sitekey="...">
         'secret_key'  => 'CHANGE-ME',                // server-side verify — NIKDY do frontend bundle
         'verify_url'  => 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
