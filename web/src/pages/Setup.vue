@@ -14,6 +14,7 @@ const auth = useAuthStore()
 const step = ref<1 | 2 | 3>(1)
 const submitting = ref(false)
 const error = ref('')
+const fieldErrors = ref<Record<string, string[]>>({})
 
 const admin = ref({ name: '', email: '', password: '', password_confirm: '' })
 const skipSupplier = ref(false)
@@ -110,6 +111,7 @@ function nextStep() {
 async function submit() {
   submitting.value = true
   error.value = ''
+  fieldErrors.value = {}
   try {
     const payload: SetupPayload = {
       admin: {
@@ -162,7 +164,27 @@ async function submit() {
 
     step.value = 3
   } catch (e: any) {
-    error.value = e?.response?.data?.error?.message || 'Setup selhal.'
+    const data = e?.response?.data?.error
+    fieldErrors.value = data?.fields ?? {}
+    if (Object.keys(fieldErrors.value).length > 0) {
+      // Konkrétnější hláška: vypiš která pole jsou nevalidní (CZ/EN labels)
+      const labels: Record<string, string> = {
+        'admin.name':            t('users.name'),
+        'admin.email':           `${t('setup.step_admin')} – ${t('auth.email')}`,
+        'admin.password':        t('auth.password'),
+        'supplier.company_name': t('client.company_name'),
+        'supplier.street':       t('client.street'),
+        'supplier.city':         t('client.city'),
+        'supplier.zip':          t('client.zip'),
+        'supplier.email':        `${t('settings.supplier')} – ${t('auth.email')}`,
+      }
+      const names = Object.keys(fieldErrors.value).map(k => labels[k] ?? k)
+      error.value = (locale.value === 'cs'
+        ? 'Vyplň prosím povinná pole: '
+        : 'Please fill required fields: ') + names.join(', ')
+    } else {
+      error.value = data?.message || 'Setup selhal.'
+    }
   } finally {
     submitting.value = false
   }
@@ -220,7 +242,11 @@ async function submit() {
         <!-- Step 2 -->
         <div v-if="step === 2">
           <h2 class="text-xl font-semibold mb-1">{{ t('settings.supplier') }} <span class="text-sm font-normal text-neutral-500">{{ t('common.optional') }}</span></h2>
-          <p class="text-sm text-neutral-500 mb-6">{{ locale === 'cs' ? 'Údaje na vašich fakturách. Můžete vyplnit později.' : 'Details that appear on your invoices. You can fill them in later.' }}</p>
+          <p class="text-sm text-neutral-500 mb-6">
+            {{ locale === 'cs'
+              ? 'Údaje na vašich fakturách. Můžeš celou sekci přeskočit a vyplnit později; pokud začneš vyplňovat, jsou pole označená * povinná.'
+              : 'Details that appear on your invoices. You can skip this whole section and fill it in later; if you start filling it in, fields marked with * are required.' }}
+          </p>
 
           <label class="flex items-center gap-2 text-sm text-neutral-700 mb-4">
             <input v-model="skipSupplier" type="checkbox" class="rounded border-neutral-300 text-primary-600" />
@@ -245,33 +271,41 @@ async function submit() {
               <div v-if="aresMessage" class="mt-2 text-xs px-2 py-1 rounded"
                 :class="aresMessage.type === 'success' ? 'bg-success-50 text-success-600' : 'bg-danger-50 text-danger-500'">
                 {{ aresMessage.text }}
+                <span v-if="aresMessage.type === 'success' && !supplier.email" class="block mt-0.5 text-warning-700">
+                  {{ t('supplier.ares_loaded_email_hint') }}
+                </span>
               </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('client.company_name') }}</label>
-                <input v-model="supplier.company_name" class="w-full h-10 px-3 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none" />
+                <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('client.company_name') }} <span class="text-danger-500">*</span></label>
+                <input v-model="supplier.company_name" required :class="['w-full h-10 px-3 border rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none', fieldErrors['supplier.company_name'] ? 'border-danger-500' : 'border-neutral-300']" />
+                <p v-if="fieldErrors['supplier.company_name']" class="text-xs text-danger-500 mt-1">{{ fieldErrors['supplier.company_name'][0] }}</p>
               </div>
               <div>
                 <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('client.dic') }}</label>
                 <input v-model="supplier.dic" class="w-full h-10 px-3 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('auth.email') }}</label>
-                <input v-model="supplier.email" type="email" class="w-full h-10 px-3 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none" />
+                <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('auth.email') }} <span class="text-danger-500">*</span></label>
+                <input v-model="supplier.email" type="email" required :class="['w-full h-10 px-3 border rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none', fieldErrors['supplier.email'] ? 'border-danger-500' : 'border-neutral-300']" />
+                <p v-if="fieldErrors['supplier.email']" class="text-xs text-danger-500 mt-1">{{ fieldErrors['supplier.email'][0] }}</p>
               </div>
               <div class="sm:col-span-2">
-                <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('client.street') }}</label>
-                <input v-model="supplier.street" class="w-full h-10 px-3 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none" />
+                <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('client.street') }} <span class="text-danger-500">*</span></label>
+                <input v-model="supplier.street" required :class="['w-full h-10 px-3 border rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none', fieldErrors['supplier.street'] ? 'border-danger-500' : 'border-neutral-300']" />
+                <p v-if="fieldErrors['supplier.street']" class="text-xs text-danger-500 mt-1">{{ fieldErrors['supplier.street'][0] }}</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('client.zip') }}</label>
-                <input v-model="supplier.zip" class="w-full h-10 px-3 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none" />
+                <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('client.zip') }} <span class="text-danger-500">*</span></label>
+                <input v-model="supplier.zip" required :class="['w-full h-10 px-3 border rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none', fieldErrors['supplier.zip'] ? 'border-danger-500' : 'border-neutral-300']" />
+                <p v-if="fieldErrors['supplier.zip']" class="text-xs text-danger-500 mt-1">{{ fieldErrors['supplier.zip'][0] }}</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('client.city') }}</label>
-                <input v-model="supplier.city" class="w-full h-10 px-3 border border-neutral-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none" />
+                <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('client.city') }} <span class="text-danger-500">*</span></label>
+                <input v-model="supplier.city" required :class="['w-full h-10 px-3 border rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none', fieldErrors['supplier.city'] ? 'border-danger-500' : 'border-neutral-300']" />
+                <p v-if="fieldErrors['supplier.city']" class="text-xs text-danger-500 mt-1">{{ fieldErrors['supplier.city'][0] }}</p>
               </div>
             </div>
 

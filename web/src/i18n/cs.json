@@ -378,6 +378,7 @@
     "ares_invalid_ic": "IČ musí mít přesně 8 číslic.",
     "ares_not_found": "Subjekt nebyl v ARES nalezen.",
     "ares_loaded": "Načteno: {name}",
+    "ares_loaded_email_hint": "ARES nevrací e-mail — doplň ho ručně níže.",
     "ares_failed": "Načtení z ARES selhalo.",
     "switch": "Přepnout",
     "count": "{n} dodavatelů",

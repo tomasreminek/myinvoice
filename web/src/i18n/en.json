@@ -378,6 +378,7 @@
     "ares_invalid_ic": "Company ID must be exactly 8 digits.",
     "ares_not_found": "Subject not found in ARES.",
     "ares_loaded": "Loaded: {name}",
+    "ares_loaded_email_hint": "ARES does not return e-mail — please fill it in manually below.",
     "ares_failed": "ARES lookup failed.",
     "switch": "Switch",
     "count": "{n} suppliers",
