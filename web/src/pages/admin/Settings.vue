@@ -46,8 +46,10 @@ async function saveSupplier() {
       phone: supplier.value.phone,
       web: supplier.value.web,
       tagline: supplier.value.tagline,
+      commercial_register: supplier.value.commercial_register,
       default_payment_due_days: supplier.value.default_payment_due_days,
       default_hourly_rate: supplier.value.default_hourly_rate,
+      auto_send_reminders: supplier.value.auto_send_reminders,
       pohoda_account_code: supplier.value.pohoda_account_code,
       pohoda_centre_code: supplier.value.pohoda_centre_code,
       pohoda_activity_code: supplier.value.pohoda_activity_code,
@@ -176,6 +178,13 @@ async function removeCurrency(c: CurrencyAccount) {
             <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('settings.tagline') }}</label>
             <input v-model="supplier.tagline" type="text" class="w-full h-10 px-3 border border-neutral-300 rounded-md text-sm" />
           </div>
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('settings.commercial_register') }}</label>
+            <input v-model="supplier.commercial_register" type="text"
+              :placeholder="t('settings.commercial_register_placeholder')"
+              class="w-full h-10 px-3 border border-neutral-300 rounded-md text-sm" />
+            <p class="text-xs text-neutral-500 mt-1">{{ t('settings.commercial_register_hint') }}</p>
+          </div>
           <div>
             <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('settings.default_due') }}</label>
             <input v-model.number="supplier.default_payment_due_days" type="number" min="0" class="w-full h-10 px-3 border border-neutral-300 rounded-md text-sm font-mono" />
@@ -183,6 +192,13 @@ async function removeCurrency(c: CurrencyAccount) {
           <div>
             <label class="block text-sm font-medium text-neutral-700 mb-1">{{ t('settings.default_hourly_rate') }} ({{ supplier.default_currency }})</label>
             <input v-model.number="supplier.default_hourly_rate" type="number" step="0.01" min="0" class="w-full h-10 px-3 border border-neutral-300 rounded-md text-sm font-mono" />
+          </div>
+          <div class="md:col-span-2">
+            <label class="flex items-center gap-2 text-sm">
+              <input v-model="supplier.auto_send_reminders" type="checkbox" class="rounded border-neutral-300 text-primary-600" />
+              {{ t('settings.auto_send_reminders') }}
+            </label>
+            <p class="text-xs text-neutral-500 mt-1 ml-6">{{ t('settings.auto_send_reminders_hint') }}</p>
           </div>
         </div>
 
@@ -222,7 +238,8 @@ async function removeCurrency(c: CurrencyAccount) {
         <header class="px-5 py-3 border-b border-neutral-200">
           <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500">{{ t('settings.currencies_banks') }}</h2>
         </header>
-        <table class="w-full text-sm">
+        <div class="overflow-x-auto">
+        <table class="w-full text-sm table-sticky-first">
           <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
             <tr>
               <th class="px-3 py-2 text-left font-medium">{{ t('settings.currency') }}</th>
@@ -260,6 +277,7 @@ async function removeCurrency(c: CurrencyAccount) {
             </tr>
           </tbody>
         </table>
+        </div>
         <div class="px-5 py-3 border-t border-neutral-200 bg-neutral-50 text-xs text-neutral-600 flex flex-wrap gap-3 items-center">
           <span>{{ t('settings.add_another_account') }}</span>
           <button v-for="code in [...new Set(currencies.map(c => c.code))]" :key="code"

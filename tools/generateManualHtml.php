@@ -281,8 +281,8 @@ foreach (glob($dstDir . '/*.html') as $oldHtml) {
 // Generate chapter HTMLs
 // ============================================================================
 
-// Glob NN_*.md (e.g. 01_Uvod.md) i 99_Reseni_problemu.md
-$files = glob($srcDir . '/[0-9][0-9]_*.md');
+// Glob NN[a-z]?_*.md (e.g. 01_Uvod.md, 13a_Importy.md, 99_Reseni_problemu.md)
+$files = glob($srcDir . '/[0-9][0-9]*_*.md');
 sort($files, SORT_STRING);
 
 $chapters = [];

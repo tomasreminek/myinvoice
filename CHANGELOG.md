@@ -7,6 +7,197 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-05-04
+
+### Added
+
+- **Upomínky — per-supplier + per-klient přepínač** automatického odesílání.
+  Globální cron upomínek (po splatnosti / před splatností) lze nyní vypnout
+  na úrovni dodavatele i jednotlivého klienta. Manuální odeslání zůstává
+  vždy dostupné.
+- **Klient — výchozí hodinová sazba** se ukládá na klientovi a
+  předvyplňuje se při vytváření nové zakázky i při přidávání řádku
+  výkazu víceprací do faktury.
+
+### Changed
+
+- **VIES ověření CZ DIČ** používá ARES místo VIES (rychlejší, spolehlivější),
+  cache TTL zkrácena na 3 hodiny.
+- **Editor faktury** — při změně klienta/zakázky se osvěží sazba (DPH i
+  hodinová) u prázdné položky a u řádku výkazu víceprací, takže nově
+  zadávané položky vždy reflektují aktuální nastavení.
+
+### Fixed
+
+- Předvyplnění hodinové sazby v editoru faktury nerespektovalo default
+  z klienta — opraveno.
+
+## [1.7.0] — 2026-05-04
+
+### Added
+
+- **Plošný mobilní redesign tabulek** — pod `md:` breakpointem (<768 px) se každá
+  list-tabulka skryje a zobrazí jako stack karet; nad `md:` zůstává původní
+  tabulkový layout beze změny. Pokrývá:
+  - **List views** — `/invoices` (s zachováním měsíčních skupin),
+    `/clients`, `/projects`, `/bank` (statementy).
+  - **Detail nested views** — `ClientDetail` → Zakázky + Faktury,
+    `ProjectDetail` → Faktury, `InvoiceDetail` → Položky + Výkaz víceprací.
+  - **Edit forms** — `InvoiceEditor` → Položky + Výkaz víceprací jako stack
+    karet s jedním inputem na řádek (popis, množství/jednotka, cena/DPH,
+    sazba/celkem), tap targets ≥ 40 px, `inputmode="decimal"` na číslech
+    pro mobilní num klávesnici.
+  - **Dashboard widgety** — „Po splatnosti", „Nezaplacené", „Top klienti"
+    jako kompaktní list-rows (klient + amount + dny po splatnosti badge,
+    share bar inline).
+  - **Bank/StatementDetail transakce** — kartové view s amount nahoře,
+    status badge, full-width tlačítka **Spárovat / Ignorovat / Zrušit
+    spárování** (klíčový workflow byl předtím schovaný za horizontálním
+    scrollem a nedostupný z mobilu).
+  - **Admin views** — `Users` (s 2FA / Upravit / Deaktivovat tlačítky),
+    `Approvals` (jako tap-card na detail faktury), `ActivityLog`,
+    `EmailTemplates`, `Codebooks` (Měny / Sazby DPH / Země).
+- **`<SearchableSelect>` komponenta** — `web/src/components/ui/SearchableSelect.vue`,
+  generic Vue 3 SFC. Combobox pattern (input + dropdown) místo native
+  `<select>`. Substring search napříč `label` + volitelným `secondary`
+  polem (např. firma + IČ jako secondary). Klávesy ↑↓ Enter Esc, click
+  mimo zavře, clearable × tlačítko, ARIA role=combobox/listbox/option.
+  Nasazeno v: filter klienta na `/invoices` a `/projects`, výběr klienta
+  i zakázky v `InvoiceEditor` (s zachováním `onClientChange` /
+  `onProjectChange` callbacků).
+- **CSS helper `.table-sticky-first`** v `web/src/styles/main.css` — pro
+  tabulky, které na mobilu zůstávají (nemají kartové view). První sloupec
+  drží `position: sticky; left: 0`, takže při horizontálním scrollu vlevo
+  vidíte identifikátor řádku. Background dědí z `<tr>`, takže hover/status
+  barvy fungují; default `white` je nastaven přes `:where()` se specificitou 0,
+  aby Tailwind utility (`bg-warning-50`, `hover:bg-neutral-50`, …) na `<tr>`
+  stále vyhrály.
+
+### Changed
+
+- **Tabulkové wrappery napříč aplikací** — `overflow-hidden` na karetních
+  obalech tabulek nahrazeno za vnitřní `overflow-x-auto` div. Důvod: pod
+  `md:` se některé tabulky (např. `InvoiceList` 703 px na 444 px wrapperu)
+  s `overflow-hidden` natvrdo ořezávaly, část sloupců (K ÚHRADĚ, STAV) byla
+  kompletně nedostupná. Stránky bez `overflow-hidden` zase rozkládaly
+  horizontální scroll na celý viewport (854 px doc na 492 px viewport).
+  Nový pattern: scroll uzavřený dovnitř karty, layout stránky beze změny.
+- **Detail page headers responsivní** — `ClientDetail`, `ProjectDetail`,
+  `InvoiceDetail` přepnuty z `flex items-start justify-between` na
+  `flex flex-col md:flex-row md:justify-between`. Title + breadcrumb /
+  badges nahoře, akční tlačítka (Upravit / Archivovat / Klonovat / PDF /
+  Odeslat …) wrap do gridu pod nimi. Žádné kolize titlu s tlačítky na
+  malých displayech.
+
+
+### Added
+
+- **Importy vystavených faktur z Pohoda XML / ISDOC** — nový endpoint
+  `POST /api/admin/import` (admin/účetní). Podporuje single soubor `.xml`
+  nebo `.isdoc`, případně `.zip` s libovolným počtem těchto souborů uvnitř.
+  Per fakturu:
+  - **Supplier match** — IČ dodavatele ze souboru musí odpovídat aktuálnímu
+    `X-Supplier-Id` scope; jinak se soubor přeskočí.
+  - **Klient** — lookup po `(supplier_id, ic)`; pokud neexistuje, fakturační
+    adresa se preferenčně tahá z ARES (`AresClient::lookup`), fallback na
+    adresu z XML. Vznikne nový `clients` row.
+  - **Zakázka** — pokud má faktura `project_number` (ISDOC `OrderReference/ID`
+    nebo Pohoda `numberOrder`), najde nebo vytvoří zakázku s tím číslem.
+    Když chybí, ale klient má napříč importovaným balíkem >1 unikátních
+    e-mailů, vytvoří se per-(klient,e-mail) zakázka s názvem `{Firma} – {email}`.
+    Jinak `project_id = NULL`.
+  - **Stav** — pokud je `due_date` starší než 30 dní → `paid` (`paid_at` =
+    `tax_date` nebo `issue_date`); jinak `issued`. UI to popisuje uživateli
+    v info banneru na stránce.
+  - **Duplicity** — kontrola po `(supplier_id, varsymbol)`; existující
+    se přeskakují s důvodem v reportu.
+  - **Snapshoty** — čerstvé z aktuálních supplier/client/bank dat.
+- **Frontend stránka `Systém → Importy`** — drag & drop upload, žlutý
+  banner o povinnosti existujícího dodavatele, modrý banner o pravidle
+  30 dní, tabulka výsledků s odkazem na vytvořené faktury, badge
+  `paid` / `issued` a štítky `+ klient` / `+ zakázka`.
+- **Manuál** — nová kapitola 14 `13a_Importy.md`.
+- **i18n** — sekce `imports.*` (cs + en).
+
+### Changed
+
+- **Exporty zapisují číslo zakázky / smlouvy** — `PohodaXmlExporter` přidává
+  `<inv:numberOrder>{project_number}</inv:numberOrder>` do `invoiceHeader`,
+  `IsdocExporter` přidává `<OrderReference><ID>{project_number}</ID></OrderReference>`
+  a `<ContractReference><ID>{contract_number}</ID></ContractReference>` před
+  `AccountingSupplierParty`. Round-trip přes naše vlastní exporty teď
+  zachovává linkování na zakázku, a importy z jiných systémů, které tyto
+  reference vyplňují, se pokusí přiřadit fakturu k zakázce s odpovídajícím
+  číslem (existující najdou, jinak vytvoří).
+- **`InvoicePdfRenderer::render(forceRegenerate=true)`** — kromě cache PDF
+  obnoví i `supplier_snapshot` / `client_snapshot` / `bank_snapshot` v DB
+  z aktuálních live dat. Bez toho se změny v supplier/client tabulce
+  (např. toggle `is_vat_payer`) na `issued+` faktury nepropisovaly.
+- **PDF šablona faktury** — pro neplátce DPH se ve metadatech místo řádku
+  `DUZP` zobrazí `DPH: Není plátce DPH`, sumace skrývá `Základ X %` /
+  `DPH X %` / `Celkem bez DPH` / `DPH celkem` (zůstává jen `Celkem`).
+  Hlavičkový title bez „— daňový doklad" pro neplátce. Pro proformu
+  (i pro plátce DPH) totéž — title jen `Zálohová faktura`, bez DUZP, bez
+  rozpisu základů daně.
+
+## [1.5.0] — 2026-05-05
+
+### Added
+
+- **Daňový doklad k zaplacené záloze — automaticky i ručně.**
+  Zaplacení zálohové faktury (proforma) teď vede k vystavení **konceptu
+  finální faktury** s parent-child vazbou (`parent_invoice_id`),
+  zkopírovanými položkami a vyplněným odečtem zálohy
+  (`advance_paid_amount = proforma.total_with_vat`). Caller pak fakturu
+  jen zkontroluje a vystaví standardním tlačítkem „Vystavit". Tři vstupní
+  body:
+  - **Tlačítko „Vystavit fakturu k záloze"** v detailu proformy ve stavu
+    `paid` — `POST /api/invoices/{id}/issue-final` redirectne do editoru.
+  - **Auto-match bankovní transakce** v `StatementMatcher`. Filtr rozšířen
+    z `invoice_type='invoice'` na `IN ('invoice','proforma')`. Po
+    `auto_exact` na proformě v jedné transakci: `paid` + spárovat TX +
+    vytvořit final draft. Audit `proforma.final_issued` s `trigger='bank_match_auto'`.
+  - **Manual-match bankovní transakce** v `BankStatementAction::manualMatch`.
+    Stejný flow, response navíc obsahuje `final_draft_id`.
+- **Sdílená služba `Service/Invoice/FinalFromProformaCreator`** —
+  pure logika tvorby draftu, **idempotentní** (opakované volání nebo
+  unmatch+rematch nevytvoří duplikát, vrátí id existujícího child draftu),
+  **bezpečná na vnořené transakce** (`inTransaction()` detekce,
+  vlastní commit jen když ji sama otevřela).
+- **PDF poznámka u proformy** — automaticky pod položkami (před totals,
+  ve stejném stylu jako reverse-charge note): „Nejedná se o daňový doklad,
+  ten bude vystaven po připsání platby." / „This is not a tax document.
+  The tax document will be issued after payment is received."
+- i18n: `invoice.issue_final`, `invoice.issue_final_confirm`,
+  `invoice.issue_final_failed`, `invoice.actions.proforma_final_issued`
+  (CS + EN). `note_above_items` na vytvořeném draftu se ukládá
+  v jazyce proformy (CS / EN switch dle `proforma.language`).
+
+### Changed
+
+- **DUZP skryto na zálohové faktuře.** Detail faktury (`InvoiceDetail.vue`)
+  i PDF (`invoice.twig`) — pro `invoice_type='proforma'` se DUZP ani
+  v hlavičce datumové karty, ani v meta-grid PDF nezobrazuje.
+  Web UI: hlavička karty je teď „Vystavení / Splatnost" místo
+  „Vystavení / DUZP / Splatnost" pro proformy.
+- **`IssueFinalFromProformaAction` zrefaktorován** — deleguje na
+  `FinalFromProformaCreator`, ponechává jen HTTP validaci
+  (`SupplierGuard::owns`, `status='paid'`, `invoice_type='proforma'`)
+  a activity log s `trigger='manual'`.
+
+### Fixed
+
+- **PDF rendering selhával na fakturách s odečtem zálohy** —
+  `Cannot find TTF TrueType font file "DejaVuSansMono-BoldOblique.ttf"`.
+  Skript `cleanup-mpdf-fonts.php` ponechává jen Regular + Bold variantu
+  DejaVu Sans Mono kvůli velikosti repa, ale CSS na `.advance` řádku
+  v `totals-table` aplikoval `font-style: italic` na celý řádek včetně
+  numerické buňky `td.tot-num` (mono+bold), což po kombinaci s italic
+  vyžadovalo BoldOblique mono. Italic teď platí jen na popisek
+  („Odečet zálohy"), číselná buňka zůstane regular bold mono. Projevilo se
+  až po přidání tlačítka „Vystavit fakturu k záloze" — daňový doklad
+  k záloze je první případ, kde `advance_paid_amount > 0`.
+
 ## [1.4.0] — 2026-05-05
 
 ### Added

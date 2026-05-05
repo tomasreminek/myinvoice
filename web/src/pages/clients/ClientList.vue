@@ -101,7 +101,8 @@ function openClient(c: Client) {
         :cta="t('client.create_first')"
         to="/clients/new" />
 
-      <table v-else class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div v-else class="hidden md:block overflow-x-auto"><table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
           <tr>
             <th class="text-left px-4 py-2.5 font-medium">{{ t('client.company') }}</th>
@@ -143,7 +144,43 @@ function openClient(c: Client) {
             <td class="px-4 py-3 text-center text-neutral-600 font-mono text-xs">{{ c.currency_default }}</td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
+
+      <!-- Mobile: karty -->
+      <div v-if="items.length" class="md:hidden divide-y divide-neutral-100">
+        <div
+          v-for="c in items"
+          :key="`m-${c.id}`"
+          @click="openClient(c)"
+          class="cursor-pointer hover:bg-neutral-50 transition px-4 py-3"
+        >
+          <div class="flex items-baseline justify-between gap-2">
+            <div class="font-medium text-neutral-900 truncate">{{ c.company_name }}</div>
+            <div class="font-mono text-sm whitespace-nowrap">
+              <span v-if="c.revenue && c.revenue > 0">{{ formatMoney(c.revenue, c.currency_default) }}</span>
+              <span v-else class="text-neutral-300">—</span>
+            </div>
+          </div>
+          <div v-if="c.archived_at" class="text-xs text-neutral-400 mt-0.5">{{ t('common.archived') }}</div>
+          <div class="flex items-baseline justify-between gap-2 mt-1 text-xs text-neutral-500">
+            <div class="truncate">
+              <span class="font-mono">{{ c.ic || '—' }}</span>
+              <span v-if="c.main_email" class="text-neutral-400"> · </span>
+              <span v-if="c.main_email" class="truncate">{{ c.main_email }}</span>
+            </div>
+            <span class="font-mono whitespace-nowrap">{{ c.currency_default }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-2 mt-2 text-xs">
+            <span class="text-neutral-600">
+              <span v-if="c.last_invoice_date">{{ formatDate(c.last_invoice_date) }}</span>
+              <span v-else class="text-neutral-300">—</span>
+            </span>
+            <span v-if="c.active_projects_count" class="px-2 py-0.5 bg-primary-50 text-primary-700 rounded">
+              {{ t('nav.projects') }}: {{ c.active_projects_count }}
+            </span>
+          </div>
+        </div>
+      </div>
 
       <div v-if="items.length" class="px-4 py-3 border-t border-neutral-200 flex items-center justify-between text-sm">
         <span class="text-neutral-500">{{ t('common.loaded_count', { loaded: items.length, total }) }}</span>

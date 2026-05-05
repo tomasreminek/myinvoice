@@ -28,6 +28,8 @@ return [
         'pass'    => 'CHANGE-ME',
         'charset' => 'utf8mb4',
         'socket'  => null,                           // unix socket path (nebo null pro TCP); na Windows vždy null
+        'dump_tool' => '',                           // absolutní cesta k mariadb-dump / mysqldump pro cron-backup.php. Prázdné = auto-detekce z PATH a běžných instalačních lokací (Win: C:\Program Files\MariaDB*\bin, C:\inetpub\MariaDB\bin, XAMPP, Laragon).
+        'backup_skip_routines' => false,             // true = vynechat stored procedures/functions ze zálohy. Dej true pokud DB user nemá privilege a nechceš grantovat (např. shared hosting). Default false = včetně procedur; při permission erroru auto-fallback s warningem.
     ],
     'redis' => [
         'enabled' => false,                           // false = fallback na DB sessions a in-memory cache
@@ -51,8 +53,8 @@ return [
         'encryption'     => 'tls',                   // 'ssl' | 'tls' | '' (žádné, jen lokální dev nebo plain relay)
 
         // Authentication
-        'auth_enabled'   => true,                    // false pro plain relay (např. interní MTA bez auth)
-        'auth_type'      => 'LOGIN',                 // 'LOGIN' | 'PLAIN' | 'CRAM-MD5' | 'XOAUTH2'
+        'auth_enabled'   => false,                    // false pro plain relay (např. interní MTA bez auth)
+        'auth_type'      => 'PLAIN',                 // 'LOGIN' | 'PLAIN' | 'CRAM-MD5' | 'XOAUTH2'
         'user'           => 'CHANGE-ME',
         'pass'           => 'CHANGE-ME',
 
@@ -72,7 +74,10 @@ return [
 
         // Při odeslání faktury klientovi přidá supplier.email (z Nastavení > Dodavatel)
         // do CC. Hlavní To = client_main_email + project_billing_emails (vždy).
-        'cc_supplier_on_send' => false,
+        'cc_supplier_on_send'     => false,
+        // Stejné CC pro upomínky (ruční i z cronu, vč. proforma_reminder).
+        // Většinou nechcete sobě chodit kopie každé odeslané upomínky → default false.
+        'cc_supplier_on_reminder' => false,
 
         // TLS validation
         'verify_peer'      => true,                  // ověřit cert serveru — vypnout JEN pro self-signed dev SMTP
@@ -119,7 +124,7 @@ return [
         'rest_api'  => 'https://ec.europa.eu/taxation_customs/vies/rest-api/ms',
         // SOAP fallback pokud REST vypadne
         'wsdl'      => 'http://ec.europa.eu/taxation_customs/vies/services/checkVatService.wsdl',
-        'cache_ttl' => 86400,                        // 24h cache odpovědí VIES (per DIČ)
+        'cache_ttl' => 10800,                        // 3h cache odpovědí VIES (per DIČ) — VIES občas vrací false-negative při výpadku, krátká cache omezí dopad
         'timeout'   => 8,
     ],
     'logging' => [
@@ -175,7 +180,7 @@ return [
         'window_seconds'  => [300, 900, 3600],       // okna v sekundách: 5 min, 15 min, 60 min
     ],
     'captcha' => [
-        'provider'    => 'turnstile',                // 'turnstile' (Cloudflare) | 'none' (vypnout)
+        'provider'    => 'none',                // 'turnstile' (Cloudflare) | 'none' (vypnout)
         'site_key'    => 'CHANGE-ME',                // public, vkládá se do HTML <div data-sitekey="...">
         'secret_key'  => 'CHANGE-ME',                // server-side verify — NIKDY do frontend bundle
         'verify_url'  => 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
@@ -189,7 +194,8 @@ return [
         'token_ttl_days'        => 30,               // za kolik dní token vyprší (přesměrovat „odeslat znovu" v UI)
         'reminder_after_days'   => 5,                // cron: kolik dní bez reakce → poslat upomínku
         'max_reminders'         => 3,                // max počet upomínek na 1 token, pak přestat
-        'cc_supplier_on_reminder' => true,           // BCC dodavateli při každé upomínce (audit)
+        'cc_supplier_on_approval'          => true,  // BCC dodavateli u první žádosti o schválení (audit)
+        'cc_supplier_on_approval_reminder' => true,  // BCC dodavateli u schvalovacích upomínek (audit)
     ],
     'ip_allowlist' => [
         // Volitelný IP firewall na úrovni aplikace (mimo Apache/IIS).

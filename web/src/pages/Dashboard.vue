@@ -30,20 +30,30 @@ onMounted(async () => {
 })
 
 const kpiGridCols = computed(() => {
-  if (!summary.value) return 'lg:grid-cols-4'
+  if (!summary.value) return 'lg:grid-cols-6'
   const showApprovals = isAdmin.value
     && (summary.value.pending_approvals?.requested ?? 0) > 0
-  const count = (summary.value.kpi.per_currency?.length ?? 0)
-    + 3                              // Vystaveno + Po splatnosti + Ø
-    + (showApprovals ? 1 : 0)        // + Čeká na schválení
-  // Tailwind musí vidět tyto třídy staticky — proto explicitní mapping:
+  const currencies = summary.value.kpi.per_currency?.length ?? 0
+  // Revenue tile spans 2 cols (lg:col-span-2), standardní boxy 1 col.
+  // Sloty = currencies*2 + 4 standard (Vystaveno/Po splatnosti/Před splatností/Ø) [+ 1 schvalování]
+  const slots = currencies * 2 + 4 + (showApprovals ? 1 : 0)
+  // Tailwind musí vidět tyto třídy staticky — explicitní mapping.
   return ({
-    3: 'lg:grid-cols-3',
-    4: 'lg:grid-cols-4',
-    5: 'lg:grid-cols-5',
-    6: 'lg:grid-cols-6',
-    7: 'lg:grid-cols-7',
-  } as Record<number, string>)[count] ?? 'lg:grid-cols-4'
+    6: 'lg:grid-cols-6',   // 1 měna: 1×wide + 4×slim, 1 řada
+    7: 'lg:grid-cols-7',   // 1 měna + schvalování, 1 řada
+    8: 'lg:grid-cols-4',   // 2 měny: 2 řady × 4 (revenue span 2)
+    9: 'lg:grid-cols-3',   // 2 měny + schvalování
+    10: 'lg:grid-cols-5',  // 3 měny: 2 řady × 5
+  } as Record<number, string>)[slots] ?? 'lg:grid-cols-6'
+})
+
+const upcomingPerCurrency = computed(() => {
+  if (!summary.value) return [] as Array<{ currency: string; total: number }>
+  const map = new Map<string, number>()
+  for (const i of summary.value.unpaid_upcoming) {
+    map.set(i.currency, (map.get(i.currency) ?? 0) + Number(i.amount_to_pay || 0))
+  }
+  return Array.from(map, ([currency, total]) => ({ currency, total }))
 })
 
 const hasAnyRevenue = computed(() => {
@@ -106,7 +116,7 @@ function openInvoice(id: number) {
     <div v-else-if="summary" class="space-y-6">
       <!-- KPI tiles — dynamicky N sloupců dle počtu měn (1 měna → 4 boxy, 2 měny → 5 boxů…) -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4" :class="kpiGridCols">
-        <div v-for="c in summary.kpi.per_currency" :key="c.currency" class="bg-white border border-neutral-200 rounded-lg p-5 shadow-sm">
+        <div v-for="c in summary.kpi.per_currency" :key="c.currency" class="bg-white border border-neutral-200 rounded-lg p-5 shadow-sm lg:col-span-2">
           <div class="text-xs uppercase tracking-wide text-neutral-500 mb-1">{{ t('dashboard.revenue', { year: summary.year, currency: c.currency }) }}</div>
           <div class="text-2xl font-semibold text-neutral-900 font-mono">{{ formatMoney(c.this_year, c.currency) }}</div>
           <div v-if="c.change_pct !== null" class="text-xs mt-1" :class="c.change_pct >= 0 ? 'text-success-600' : 'text-danger-500'"
@@ -127,11 +137,22 @@ function openInvoice(id: number) {
           <div class="text-2xl font-semibold" :class="summary.kpi.overdue_count > 0 ? 'text-danger-500' : 'text-neutral-900'">
             {{ summary.kpi.overdue_count }}
           </div>
-          <div class="text-xs mt-1" :class="summary.kpi.overdue_count > 0 ? 'text-danger-500' : 'text-neutral-400'">
+          <div class="text-xs mt-1 flex flex-wrap gap-x-3" :class="summary.kpi.overdue_count > 0 ? 'text-danger-500' : 'text-neutral-400'">
             <span v-for="o in summary.kpi.overdue_per_currency" :key="o.currency">
               {{ formatMoney(o.total, o.currency) }}
             </span>
             <span v-if="summary.kpi.overdue_count === 0">{{ t('dashboard.all_ok') }}</span>
+          </div>
+        </div>
+
+        <div class="bg-white border border-neutral-200 rounded-lg p-5 shadow-sm">
+          <div class="text-xs uppercase tracking-wide text-neutral-500 mb-1">{{ t('dashboard.upcoming') }}</div>
+          <div class="text-2xl font-semibold text-neutral-900">{{ summary.unpaid_upcoming.length }}</div>
+          <div class="text-xs mt-1 text-neutral-400 flex flex-wrap gap-x-3">
+            <span v-for="u in upcomingPerCurrency" :key="u.currency">
+              {{ formatMoney(u.total, u.currency) }}
+            </span>
+            <span v-if="!upcomingPerCurrency.length">{{ t('dashboard.upcoming_none') }}</span>
           </div>
         </div>
 
@@ -209,7 +230,8 @@ function openInvoice(id: number) {
           <div v-if="!summary.overdue.length" class="p-6 text-center text-sm text-neutral-500">
             {{ t('dashboard.overdue_none') }}
           </div>
-          <table v-else class="w-full text-sm">
+          <!-- Desktop: tabulka -->
+          <div v-else class="hidden md:block overflow-x-auto"><table class="w-full text-sm table-sticky-first">
             <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
               <tr>
                 <th class="px-3 py-2 text-left font-medium">{{ t('type.invoice') }}</th>
@@ -230,7 +252,24 @@ function openInvoice(id: number) {
                 </td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
+
+          <!-- Mobile: kompaktní list -->
+          <div v-if="summary.overdue.length" class="md:hidden divide-y divide-neutral-100">
+            <div v-for="i in summary.overdue" :key="`m-${i.id}`" @click="openInvoice(i.id)"
+              class="cursor-pointer hover:bg-neutral-50 px-3 py-2.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <div class="font-medium text-neutral-900 truncate">{{ i.client_company_name }}</div>
+                <div class="font-mono text-sm whitespace-nowrap">{{ formatMoney(i.amount_to_pay, i.currency) }}</div>
+              </div>
+              <div class="flex items-baseline justify-between gap-2 mt-0.5">
+                <span class="font-mono text-xs text-neutral-500">{{ i.varsymbol }}</span>
+                <span class="text-xs px-1.5 py-0.5 rounded bg-danger-50 text-danger-500 font-medium whitespace-nowrap">
+                  +{{ i.days_overdue }}d
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Nezaplacené -->
@@ -244,7 +283,8 @@ function openInvoice(id: number) {
           <div v-if="!summary.unpaid_upcoming.length" class="p-6 text-center text-sm text-neutral-500">
             {{ t('dashboard.unpaid_none') }}
           </div>
-          <table v-else class="w-full text-sm">
+          <!-- Desktop: tabulka -->
+          <div v-else class="hidden md:block overflow-x-auto"><table class="w-full text-sm table-sticky-first">
             <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
               <tr>
                 <th class="px-3 py-2 text-left font-medium">{{ t('type.invoice') }}</th>
@@ -261,7 +301,22 @@ function openInvoice(id: number) {
                 <td class="px-3 py-2 text-center text-xs">{{ formatDate(i.due_date) }}</td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
+
+          <!-- Mobile: kompaktní list -->
+          <div v-if="summary.unpaid_upcoming.length" class="md:hidden divide-y divide-neutral-100">
+            <div v-for="i in summary.unpaid_upcoming" :key="`m-${i.id}`" @click="openInvoice(i.id)"
+              class="cursor-pointer hover:bg-neutral-50 px-3 py-2.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <div class="font-medium text-neutral-900 truncate">{{ i.client_company_name }}</div>
+                <div class="font-mono text-sm whitespace-nowrap">{{ formatMoney(i.amount_to_pay, i.currency) }}</div>
+              </div>
+              <div class="flex items-baseline justify-between gap-2 mt-0.5 text-xs text-neutral-500">
+                <span class="font-mono">{{ i.varsymbol }}</span>
+                <span class="font-mono">{{ formatDate(i.due_date) }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -270,7 +325,9 @@ function openInvoice(id: number) {
         <header class="px-5 py-3 border-b border-neutral-200">
           <h3 class="font-semibold">{{ t('dashboard.top_clients_year', { year: summary.year }) }}</h3>
         </header>
-        <table class="w-full text-sm">
+        <!-- Desktop: tabulka -->
+        <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-sm table-sticky-first">
           <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
             <tr>
               <th class="px-4 py-2 text-left font-medium w-8">#</th>
@@ -295,6 +352,28 @@ function openInvoice(id: number) {
             </tr>
           </tbody>
         </table>
+        </div>
+
+        <!-- Mobile: kompaktní list s share bar -->
+        <div class="md:hidden divide-y divide-neutral-100">
+          <div v-for="(c, i) in summary.top_clients_ytd" :key="`m-${c.client_id}-${c.currency}`"
+            @click="router.push(`/clients/${c.client_id}`)"
+            class="cursor-pointer hover:bg-neutral-50 px-3 py-2.5">
+            <div class="flex items-baseline justify-between gap-2">
+              <div class="flex items-baseline gap-2 min-w-0">
+                <span class="text-neutral-400 font-mono text-xs whitespace-nowrap">{{ i + 1 }}.</span>
+                <span class="font-medium text-neutral-900 truncate">{{ c.company_name }}</span>
+              </div>
+              <div class="font-mono text-sm whitespace-nowrap">{{ formatMoney(c.total, c.currency) }}</div>
+            </div>
+            <div class="flex items-center gap-2 mt-1.5">
+              <div class="h-1.5 flex-1 bg-neutral-100 rounded-full overflow-hidden">
+                <div class="h-full bg-primary-500 rounded-full" :style="{ width: (c.total / summary.top_clients_ytd[0].total * 100) + '%' }"></div>
+              </div>
+              <span class="text-xs text-neutral-500 font-mono whitespace-nowrap">{{ c.invoice_count }}×</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

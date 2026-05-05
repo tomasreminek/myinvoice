@@ -119,7 +119,9 @@ function roleBadge(role: string): string {
     <div v-if="loading" class="text-center text-neutral-500 py-12 text-sm">{{ t('common.loading') }}</div>
 
     <div v-else class="bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden">
-      <table class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div class="hidden md:block overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
           <tr>
             <th class="px-3 py-2 text-left font-medium">{{ t('settings.email') }}</th>
@@ -160,6 +162,47 @@ function roleBadge(role: string): string {
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Mobile: karty -->
+      <div class="md:hidden divide-y divide-neutral-100">
+        <div v-for="u in users" :key="`m-${u.id}`" class="p-3 space-y-2"
+          :class="{ 'opacity-50': !u.is_active }">
+          <div class="flex items-baseline justify-between gap-2">
+            <div class="font-medium text-neutral-900 truncate">{{ u.name }}</div>
+            <span class="text-xs px-2 py-0.5 rounded font-medium whitespace-nowrap" :class="roleBadge(u.role)">{{ u.role }}</span>
+          </div>
+          <div class="flex items-baseline justify-between gap-2 text-xs text-neutral-500">
+            <span class="font-mono truncate">{{ u.email }}</span>
+            <span v-if="isLastAdmin(u)" class="px-1.5 py-0.5 rounded bg-warning-50 text-warning-600 whitespace-nowrap" :title="t('users.is_last_admin_lock')">🔒</span>
+          </div>
+          <div class="flex items-baseline justify-between gap-2 text-xs text-neutral-500">
+            <span>
+              <span v-if="u.is_active" class="text-success-600">✓ {{ t('users.active') }}</span>
+              <span v-else>— {{ t('users.active') }}</span>
+              <span class="text-neutral-400 mx-1.5">·</span>
+              <span class="font-mono">{{ u.locale }}</span>
+            </span>
+            <span class="font-mono">{{ u.last_login_at?.replace('T', ' ').slice(0, 16) || '—' }}</span>
+          </div>
+          <div class="flex gap-2 pt-1">
+            <RouterLink v-if="auth.user?.id === u.id" to="/profile/totp"
+              class="cursor-pointer flex-1 h-9 text-sm border border-primary-500/40 text-primary-700 hover:bg-primary-50 font-medium rounded-md inline-flex items-center justify-center"
+              :title="t('auth.totp_2fa')">
+              2FA
+            </RouterLink>
+            <button @click="openEdit(u)"
+              class="cursor-pointer flex-1 h-9 text-sm border border-primary-500/40 text-primary-700 hover:bg-primary-50 font-medium rounded-md">
+              {{ t('common.edit') }}
+            </button>
+            <button v-if="u.is_active" @click="deactivate(u)" :disabled="isLastAdmin(u)"
+              class="cursor-pointer flex-1 h-9 text-sm border border-danger-500/40 text-danger-500 hover:bg-danger-50 disabled:opacity-30 disabled:cursor-not-allowed rounded-md"
+              :title="isLastAdmin(u) ? t('users.is_last_admin_lock') : t('users.deactivate')">
+              {{ t('users.deactivate') }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Modal -->

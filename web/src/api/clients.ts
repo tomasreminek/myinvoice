@@ -17,7 +17,9 @@ export interface Client {
   currency_default_id: number
   currency_default: string
   reverse_charge: boolean
+  auto_send_reminders: boolean
   payment_due_default?: number | null
+  hourly_rate: number
   note?: string | null
   archived_at?: string | null
   active_projects_count?: number
@@ -63,7 +65,7 @@ export interface AresLookupResult {
 
 export interface ViesLookupResult {
   valid: boolean
-  source: 'cache' | 'rest' | 'soap' | 'error'
+  source: 'cache' | 'rest' | 'soap' | 'ares' | 'error'
   name?: string
   address?: string
   parsed?: {
@@ -90,7 +92,9 @@ export interface ClientPayload {
   language: 'cs' | 'en'
   currency_default_id: number
   reverse_charge: boolean
+  auto_send_reminders: boolean
   payment_due_default?: number | null
+  hourly_rate?: number
   note?: string | null
 }
 

@@ -17,7 +17,7 @@ samotného skriptu, takže jsou přenositelné mezi `C:\inetpub\wwwroot\…`,
 | Skript | Co dělá |
 |---|---|
 | `cron-cleanup.{cmd,sh}` | Čištění expirovaných session, starých logů, PDF cache, login_attempts |
-| `cron-backup.{cmd,sh}` | mysqldump celé DB do `private/backups/YYYY-MM-DD.sql.gz`, retention 30 dní |
+| `cron-backup.{cmd,sh}` | mariadb-dump celé DB do `storage/backup/YYYY-MM-DD.zip`, retention 30 dní |
 | `cron-bank-scan.{cmd,sh}` | Auto-import nových GPC výpisů z `private/bank-incoming/` + matching plateb na faktury |
 | `cron-send-reminders.{cmd,sh}` | Odeslání upomínkových e-mailů na faktury po splatnosti (`--days=N`, `--cooldown=N`, `--dry-run`) |
 | `cron-send-approval-reminders.{cmd,sh}` | Upomínky zákazníkům, kteří neschválili výkaz víceprací (`--days=N`, `--dry-run`) |
@@ -55,14 +55,20 @@ v admin/activity-log (každý cron sám zapíše záznam `cron.<nazev>`).
 schtasks /create /tn "MyInvoice Cleanup"   /tr "C:\inetpub\wwwroot\myinvoice.cz\cmd\cron-cleanup.cmd"        /sc daily /st 03:00 /ru SYSTEM
 schtasks /create /tn "MyInvoice Backup"    /tr "C:\inetpub\wwwroot\myinvoice.cz\cmd\cron-backup.cmd"         /sc daily /st 02:00 /ru SYSTEM
 schtasks /create /tn "MyInvoice BankScan"  /tr "C:\inetpub\wwwroot\myinvoice.cz\cmd\cron-bank-scan.cmd"      /sc minute /mo 30 /ru SYSTEM
-schtasks /create /tn "MyInvoice Reminders" /tr "C:\inetpub\wwwroot\myinvoice.cz\cmd\cron-send-reminders.cmd" /sc daily /st 09:00 /d MON,TUE,WED,THU,FRI /ru SYSTEM
-schtasks /create /tn "MyInvoice ApprovalReminders" /tr "C:\inetpub\wwwroot\myinvoice.cz\cmd\cron-send-approval-reminders.cmd" /sc daily /st 09:15 /d MON,TUE,WED,THU,FRI /ru SYSTEM
+schtasks /create /tn "MyInvoice Reminders" /tr "C:\inetpub\wwwroot\myinvoice.cz\cmd\cron-send-reminders.cmd" /sc weekly /d MON,TUE,WED,THU,FRI /st 09:00 /ru SYSTEM
+schtasks /create /tn "MyInvoice ApprovalReminders" /tr "C:\inetpub\wwwroot\myinvoice.cz\cmd\cron-send-approval-reminders.cmd" /sc weekly /d MON,TUE,WED,THU,FRI /st 09:15 /ru SYSTEM
 ```
 
 > ⚠️ PHP musí být v `PATH` účtu, pod kterým úloha běží (typicky `SYSTEM`
 > nemá uživatelský PATH — ověř `where php` v cmd spuštěném jako SYSTEM přes
 > `PsExec -s -i cmd`). Případně uprav `.cmd` skripty a doplň absolutní cestu
 > k `php.exe`.
+>
+> ⚠️ `cron-backup` potřebuje `mariadb-dump` (nebo `mysqldump`). Skript zkouší
+> `PATH` a běžné Windows lokace (`C:\Program Files\MariaDB*\bin`,
+> `C:\inetpub\MariaDB\bin`, XAMPP, Laragon). Pokud máš binárku jinde, nastav
+> v `cfg.php` (resp. `cfg.docker.php`) absolutní cestu:
+> `'db' => ['dump_tool' => 'D:\\mariadb\\bin\\mariadb-dump.exe', ...]`.
 
 ### Linux — crontab
 

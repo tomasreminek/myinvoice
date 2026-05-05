@@ -133,7 +133,8 @@ function switchTo(id: number) {
     <div v-if="loading" class="text-center text-neutral-500 py-12 text-sm">{{ t('common.loading') }}</div>
 
     <div v-else class="bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden">
-      <table class="w-full text-sm">
+      <div class="overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
           <tr>
             <th class="px-3 py-2 w-10"></th>
@@ -174,6 +175,7 @@ function switchTo(id: number) {
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Create modal -->

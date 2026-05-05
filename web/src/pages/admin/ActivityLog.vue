@@ -95,7 +95,9 @@ function goPage(delta: number) {
     </div>
 
     <div v-else class="bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden">
-      <table class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div class="hidden md:block overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
           <tr>
             <th class="px-3 py-2 text-left font-medium w-44">{{ t('activity_log.time') }}</th>
@@ -125,6 +127,26 @@ function goPage(delta: number) {
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Mobile: karty -->
+      <div class="md:hidden divide-y divide-neutral-100">
+        <div v-for="e in entries" :key="`m-${e.id}`" class="p-3 space-y-1">
+          <div class="flex items-baseline justify-between gap-2">
+            <span class="text-xs px-2 py-0.5 rounded font-medium" :class="actionBadgeClass(e.action)">{{ e.action }}</span>
+            <span v-if="e.entity_type" class="text-xs font-mono text-neutral-600 whitespace-nowrap">{{ e.entity_type }} #{{ e.entity_id }}</span>
+          </div>
+          <div class="flex items-baseline justify-between gap-2 text-xs text-neutral-500">
+            <span class="truncate">
+              <span v-if="e.user_email">{{ e.user_name || e.user_email }}</span>
+              <span v-else>—</span>
+            </span>
+            <span class="font-mono whitespace-nowrap">{{ fmtTime(e.created_at) }}</span>
+          </div>
+          <div v-if="fmtPayload(e.payload)" class="text-xs text-neutral-600 truncate">{{ fmtPayload(e.payload) }}</div>
+          <div v-if="e.ip" class="text-xs font-mono text-neutral-400">{{ e.ip }}</div>
+        </div>
+      </div>
 
       <div class="border-t border-neutral-200 p-3 flex items-center justify-between">
         <button @click="goPage(-1)" :disabled="filter.offset === 0"

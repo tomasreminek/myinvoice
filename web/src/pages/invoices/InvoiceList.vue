@@ -7,8 +7,10 @@ import { useHotkey } from '@/composables/useHotkey'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 import { clientsApi, type Client } from '@/api/clients'
+import { codebooksApi, type Currency } from '@/api/codebooks'
 import TableSkeleton from '@/components/ui/TableSkeleton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import SearchableSelect from '@/components/ui/SearchableSelect.vue'
 
 const { t, tm, rt } = useI18n()
 const toast = useToast()
@@ -34,7 +36,9 @@ const dateFrom = ref<string>('')
 const dateTo = ref<string>('')
 const overdueOnly = ref(false)
 const unpaidOnly = ref(false)
+const currencyFilter = ref<string>('')
 const clients = ref<Client[]>([])
+const currencies = ref<Currency[]>([])
 
 const selectedIds = ref<number[]>([])
 const bulkBusy = ref(false)
@@ -205,6 +209,7 @@ async function exportCsv() {
       month: dateFrom.value || dateTo.value || yearFilter.value === '' || monthFilter.value === '' ? undefined : Number(monthFilter.value),
       date_from: dateFrom.value || undefined,
       date_to:   dateTo.value || undefined,
+      currency:  currencyFilter.value || undefined,
     })
     const url = URL.createObjectURL(r.data as unknown as Blob)
     const a = document.createElement('a')
@@ -261,6 +266,7 @@ async function load(reset = true) {
       month: dateFrom.value || dateTo.value || yearFilter.value === '' || monthFilter.value === '' ? undefined : Number(monthFilter.value),
       date_from: dateFrom.value || undefined,
       date_to:   dateTo.value || undefined,
+      currency:  currencyFilter.value || undefined,
       overdue: overdueOnly.value || undefined,
       unpaid_only: unpaidOnly.value || undefined,
       page: page.value,
@@ -283,12 +289,18 @@ onMounted(async () => {
   if (route.query.client_id) {
     clientFilter.value = Number(route.query.client_id)
   }
-  // Načti seznam klientů pro select (paralelně s prvním load)
+  // Načti seznam klientů + měn pro select (paralelně s prvním load)
   clientsApi.list({ archived: false, per_page: 200 }).then(r => { clients.value = r.data }).catch(() => {})
+  codebooksApi.currencies().then(r => {
+    // Endpoint je supplier-scoped, ale multi-account schéma vrací 1 řádek per bank účet —
+    // dedupe by code pro dropdown filtru.
+    const seen = new Set<string>()
+    currencies.value = r.filter(c => c.is_active && !seen.has(c.code) && seen.add(c.code))
+  }).catch(() => {})
   await load(true)
 })
 
-watch([statusFilter, typeFilter, clientFilter, yearFilter, monthFilter, dateFrom, dateTo, overdueOnly, unpaidOnly], () => load(true))
+watch([statusFilter, typeFilter, clientFilter, yearFilter, monthFilter, dateFrom, dateTo, overdueOnly, unpaidOnly, currencyFilter], () => load(true))
 // Když se vyčistí rok (vše/range), automaticky zrušit i měsíční filtr.
 watch(yearFilter, (y) => { if (y === '') monthFilter.value = '' })
 watch([dateFrom, dateTo], ([f, to]) => { if (f || to) monthFilter.value = '' })
@@ -382,12 +394,18 @@ const monthOptions = computed(() => (tm('common.months_short') as unknown as str
           <option value="proforma">{{ t('type.proforma') }}</option>
           <option value="credit_note">{{ t('type.credit_note') }}</option>
         </select>
-        <select v-model="clientFilter" class="h-9 px-3 border border-neutral-300 rounded-md bg-white text-sm min-w-48">
-          <option :value="''">{{ t('project.all_clients') }}</option>
-          <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.company_name }}</option>
+        <div class="min-w-48 flex-1 max-w-xs">
+          <SearchableSelect
+            :model-value="clientFilter === '' ? null : clientFilter"
+            @update:model-value="(v) => clientFilter = v === null ? '' : v"
+            :options="clients.map(c => ({ value: c.id, label: c.company_name, secondary: c.ic ?? undefined }))"
+            :placeholder="t('project.all_clients')"
+          />
+        </div>
+        <select v-model="currencyFilter" class="h-9 px-3 border border-neutral-300 rounded-md bg-white text-sm">
+          <option value="">{{ t('invoice.all_currencies') }}</option>
+          <option v-for="c in currencies" :key="c.id" :value="c.code">{{ c.code }}</option>
         </select>
-        <button v-if="clientFilter !== ''" @click="clientFilter = ''"
-          class="cursor-pointer h-9 px-2 text-xs text-neutral-500 hover:text-neutral-700" :title="t('project.clear_filter')">✕</button>
         <select v-model="yearFilter" :disabled="!!dateFrom || !!dateTo"
           class="h-9 px-3 border border-neutral-300 rounded-md bg-white text-sm disabled:opacity-50">
           <option value="">{{ t('invoice.all_years') }}</option>
@@ -450,8 +468,10 @@ const monthOptions = computed(() => (tm('common.months_short') as unknown as str
           </div>
         </header>
 
-        <div class="bg-white border border-t-0 border-neutral-200 rounded-b-lg overflow-hidden">
-          <table class="w-full text-sm">
+        <!-- Desktop: tabulka -->
+        <div class="hidden md:block bg-white border border-t-0 border-neutral-200 rounded-b-lg overflow-hidden">
+          <div class="overflow-x-auto">
+          <table class="w-full text-sm table-sticky-first">
             <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
               <tr>
                 <th class="px-2 py-2 w-10"></th>
@@ -512,6 +532,66 @@ const monthOptions = computed(() => (tm('common.months_short') as unknown as str
               </tr>
             </tbody>
           </table>
+          </div>
+        </div>
+
+        <!-- Mobile: karty -->
+        <div class="md:hidden bg-white border border-t-0 border-neutral-200 rounded-b-lg divide-y divide-neutral-100 overflow-hidden">
+          <div
+            v-for="inv in g.invoices"
+            :key="`m-${inv.id}`"
+            @click="openInvoice(inv)"
+            class="cursor-pointer hover:bg-neutral-50 transition px-3 py-3"
+            :class="invoiceRowClass(inv.due_date, inv.status)"
+          >
+            <div class="flex items-start gap-3">
+              <input
+                type="checkbox"
+                :checked="selectedIds.includes(inv.id)"
+                @change="toggleSelected(inv.id)"
+                @click.stop
+                class="mt-0.5 w-5 h-5 cursor-pointer rounded border-neutral-300 text-primary-600 focus:ring-2 focus:ring-primary-500/30"
+              />
+              <div class="flex-1 min-w-0">
+                <div class="flex items-baseline justify-between gap-2">
+                  <div class="font-medium text-neutral-900 truncate">{{ inv.client_company_name }}</div>
+                  <div class="font-mono text-sm font-semibold whitespace-nowrap">
+                    {{ formatMoney(inv.amount_to_pay || inv.total_with_vat, inv.currency) }}
+                  </div>
+                </div>
+                <div class="flex items-baseline justify-between gap-2 mt-0.5 text-xs text-neutral-500">
+                  <div class="truncate">
+                    <span class="font-mono">
+                      <span v-if="inv.varsymbol">{{ inv.varsymbol }}</span>
+                      <span v-else class="text-neutral-400">{{ t('invoice.draft_id_short', { id: inv.id }) }}</span>
+                    </span>
+                    <span class="text-neutral-400"> · </span>
+                    <span>{{ typeLabel(inv.invoice_type) }}</span>
+                    <span v-if="inv.project_name" class="text-neutral-400"> · </span>
+                    <span v-if="inv.project_name" class="truncate">{{ inv.project_name }}</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between gap-2 mt-2">
+                  <div class="text-xs text-neutral-600 whitespace-nowrap">
+                    {{ formatDate(inv.tax_date || inv.issue_date) }}
+                    <span class="text-neutral-400"> → </span>
+                    <span :class="isOverdue(inv.due_date, inv.status) ? 'text-danger-500 font-medium' : ''">
+                      {{ formatDate(inv.due_date) }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1 flex-wrap justify-end">
+                    <span v-if="inv.sent_at" class="text-xs px-1 py-0.5 rounded bg-success-50 text-success-600"
+                      :title="t('invoice.sent_at', { date: formatDate(inv.sent_at) })">✉</span>
+                    <span v-if="inv.reminder_count > 0" class="text-xs px-1 py-0.5 rounded bg-warning-50 text-warning-600 font-semibold"
+                      :title="t('invoice.reminder_at', { count: inv.reminder_count, date: formatDate(inv.last_reminder_at) })">⚠ {{ inv.reminder_count }}</span>
+                    <span class="text-xs px-2 py-0.5 rounded" :class="statusBadgeClass(inv.status)">
+                      {{ statusLabel(inv.status) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -112,7 +112,9 @@ async function unmatchTx(tx: BankTransaction) {
           {{ t('bank.transactions') }} ({{ statement.transactions.length }})
         </h2>
       </header>
-      <table class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div class="hidden md:block overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
           <tr>
             <th class="px-3 py-2 text-left font-medium">{{ t('bank.date') }}</th>
@@ -170,6 +172,59 @@ async function unmatchTx(tx: BankTransaction) {
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Mobile: stack karet -->
+      <div class="md:hidden divide-y divide-neutral-100">
+        <div v-for="tx in statement.transactions" :key="`m-${tx.id}`"
+          class="p-3 space-y-2"
+          :class="{ 'opacity-50': tx.match_status === 'ignored' }">
+          <div class="flex items-baseline justify-between gap-2">
+            <div class="font-mono text-base font-semibold whitespace-nowrap"
+              :class="tx.amount > 0 ? 'text-success-600' : 'text-danger-500'">
+              {{ tx.amount > 0 ? '+' : '' }}{{ formatMoney(tx.amount, 'CZK') }}
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded font-medium whitespace-nowrap" :class="statusBadge(tx.match_status)">
+              {{ statusLabel(tx.match_status) }}
+            </span>
+          </div>
+          <div class="flex items-baseline justify-between text-xs text-neutral-500">
+            <span class="font-mono">{{ formatDate(tx.posted_at) }}</span>
+            <span class="font-mono">
+              <span v-if="tx.variable_symbol">VS {{ tx.variable_symbol }}</span>
+              <span v-else class="text-neutral-400">—</span>
+              <span v-if="tx.constant_symbol" class="text-neutral-400 ml-1">/ {{ tx.constant_symbol }}</span>
+            </span>
+          </div>
+          <div class="text-xs">
+            <div class="font-mono text-neutral-600 truncate">{{ tx.counterparty_account }}<span v-if="tx.counterparty_bank">/{{ tx.counterparty_bank }}</span></div>
+            <div v-if="tx.description" class="text-neutral-500 truncate">{{ tx.description }}</div>
+          </div>
+          <div v-if="tx.matched_invoice_id" class="text-xs">
+            <RouterLink :to="`/invoices/${tx.matched_invoice_id}`"
+              class="text-primary-600 hover:underline font-mono">
+              {{ tx.matched_varsymbol || `#${tx.matched_invoice_id}` }}
+            </RouterLink>
+            <span v-if="tx.matched_client_name" class="text-neutral-500 ml-2">{{ tx.matched_client_name }}</span>
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button v-if="tx.match_status === 'unmatched' || tx.match_status === 'auto_partial'"
+              @click="startMatch(tx)"
+              class="cursor-pointer flex-1 h-9 text-sm border border-primary-500/40 text-primary-700 hover:bg-primary-50 font-medium rounded-md">
+              {{ t('bank.match') }}
+            </button>
+            <button v-if="tx.match_status === 'unmatched'" @click="ignoreTx(tx)"
+              class="cursor-pointer flex-1 h-9 text-sm border border-neutral-300 text-neutral-600 hover:bg-neutral-50 rounded-md">
+              {{ t('bank.ignore') }}
+            </button>
+            <button v-if="['auto_exact','auto_partial','manual','ignored'].includes(tx.match_status)"
+              @click="unmatchTx(tx)"
+              class="cursor-pointer flex-1 h-9 text-sm border border-neutral-300 text-neutral-600 hover:bg-danger-50 hover:text-danger-600 rounded-md">
+              {{ t('bank.unmatch') }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Manual match modal — párování přes variabilní symbol faktury -->

@@ -13,6 +13,7 @@ use MyInvoice\Service\Currency\ExchangeRateApplier;
 use MyInvoice\Service\Invoice\InvoiceCalculator;
 use MyInvoice\Service\Invoice\InvoiceDefaults;
 use MyInvoice\Service\IpMatcher;
+use MyInvoice\Service\Pdf\InvoicePdfRenderer;
 use MyInvoice\Service\Stats\StatsRecomputer;
 use MyInvoice\Service\Validation\InvoiceValidation;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -28,6 +29,7 @@ final class UpdateInvoiceAction
         private readonly IpMatcher $ipMatcher,
         private readonly StatsRecomputer $stats,
         private readonly ExchangeRateApplier $rateApplier,
+        private readonly InvoicePdfRenderer $pdf,
     ) {}
 
     public function __invoke(Request $request, Response $response, array $args): Response
@@ -96,6 +98,11 @@ final class UpdateInvoiceAction
 
         // Force update vystavené faktury → revenue cache musí přijmout nové total/currency
         $this->stats->recomputeForInvoiceId($id);
+
+        // Invalidate cached PDF — data faktury se změnila, starý soubor je nepoužitelný.
+        // Cache freshness check v rendereru zohledňuje jen mtime šablon/CSS, ne dat,
+        // takže bez explicit invalidate by se starý PDF dál servíroval.
+        $this->pdf->invalidate($id);
 
         $ip = $this->ipMatcher->clientIpFromRequest($request->getServerParams());
         $action = ($existing['status'] !== 'draft') ? 'invoice.force_updated' : 'invoice.updated';

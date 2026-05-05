@@ -112,17 +112,17 @@ async function deleteClient() {
   <div v-if="loading" class="text-center text-neutral-500 py-12">{{ t('common.loading') }}</div>
 
   <div v-else-if="client" class="space-y-6">
-    <div class="flex items-start justify-between gap-4">
-      <div>
+    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
+      <div class="min-w-0">
         <RouterLink to="/clients" class="text-sm text-neutral-600 hover:text-neutral-900">{{ t('client.back_to_list') }}</RouterLink>
         <h1 class="text-2xl font-semibold mt-1">{{ client.company_name }}</h1>
-        <div class="text-sm text-neutral-500 mt-1 flex items-center gap-2">
+        <div class="text-sm text-neutral-500 mt-1 flex flex-wrap items-center gap-x-2">
           <span v-if="client.ic" class="font-mono">{{ t('common.ic') }} {{ client.ic }}</span>
           <span v-if="client.dic">· {{ t('common.dic') }} {{ client.dic }}</span>
           <span v-if="client.archived_at" class="px-2 py-0.5 text-xs bg-neutral-100 text-neutral-600 rounded">{{ t('common.archived') }}</span>
         </div>
       </div>
-      <div class="flex flex-wrap gap-2 justify-end">
+      <div class="flex flex-wrap gap-2 md:justify-end">
         <RouterLink :to="`/clients/${client.id}/edit`"
           class="cursor-pointer px-3 h-9 text-sm border border-primary-500/40 rounded-md text-primary-700 hover:bg-primary-50 inline-flex items-center gap-1.5">
           <svg class="w-4 h-4 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -179,6 +179,7 @@ async function deleteClient() {
           <div class="flex justify-between"><dt class="text-neutral-500">{{ t('client.language_label') }}</dt><dd class="font-mono">{{ client.language.toUpperCase() }}</dd></div>
           <div class="flex justify-between"><dt class="text-neutral-500">{{ t('common.currency') }}</dt><dd class="font-mono">{{ client.currency_default }}</dd></div>
           <div class="flex justify-between"><dt class="text-neutral-500">{{ t('client.due_label') }}</dt><dd>{{ client.payment_due_default ? t('client.due_days_n', { n: client.payment_due_default }) : t('client.due_default') }}</dd></div>
+          <div v-if="client.hourly_rate > 0" class="flex justify-between"><dt class="text-neutral-500">{{ t('client.hourly_rate') }}</dt><dd class="font-mono">{{ client.hourly_rate.toLocaleString('cs') }} {{ client.currency_default }}/h</dd></div>
           <div class="flex justify-between"><dt class="text-neutral-500">{{ t('client.rc_label') }}</dt><dd>{{ client.reverse_charge ? t('client.yes_short') : t('client.no_short') }}</dd></div>
         </dl>
       </div>
@@ -217,6 +218,7 @@ async function deleteClient() {
       </div>
       <div class="bg-white border border-neutral-200 rounded-lg p-5 shadow-sm">
         <h3 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 mb-3">{{ t('client.revenue_by_year') }}</h3>
+        <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <tbody class="divide-y divide-neutral-100">
             <tr v-for="r in client.revenue_by_year || []" :key="`${r.year}-${r.currency}`">
@@ -226,6 +228,7 @@ async function deleteClient() {
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </div>
 
@@ -241,7 +244,8 @@ async function deleteClient() {
       <div v-if="!client.projects?.length" class="p-8 text-center text-neutral-500 text-sm">
         {{ t('client.no_projects') }}
       </div>
-      <table v-else class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div v-else class="hidden md:block overflow-x-auto"><table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
           <tr>
             <th class="text-left px-4 py-2.5 font-medium">{{ t('project.name') }}</th>
@@ -280,7 +284,32 @@ async function deleteClient() {
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
+
+      <!-- Mobile: karty -->
+      <div v-if="client.projects?.length" class="md:hidden divide-y divide-neutral-100">
+        <div v-for="p in client.projects" :key="`m-${p.id}`"
+          @click="router.push(`/projects/${p.id}`)"
+          class="cursor-pointer hover:bg-neutral-50 px-4 py-3">
+          <div class="flex items-baseline justify-between gap-2">
+            <div class="font-medium text-neutral-900 truncate">{{ p.name }}</div>
+            <span class="text-xs px-2 py-0.5 rounded whitespace-nowrap"
+              :class="{
+                'bg-emerald-50 text-emerald-700': p.status === 'active',
+                'bg-amber-50 text-amber-700': p.status === 'paused',
+                'bg-neutral-100 text-neutral-600': p.status === 'closed',
+              }">{{ p.status }}</span>
+          </div>
+          <div class="flex items-baseline justify-between gap-2 mt-1 text-xs text-neutral-500">
+            <span class="font-mono">{{ p.project_number || '—' }}</span>
+            <span>
+              <span class="font-mono">{{ p.hourly_rate.toLocaleString('cs') }} {{ p.currency }}/h</span>
+              <span class="text-neutral-400 mx-1.5">·</span>
+              <span>{{ t('client.due_days_n', { n: p.payment_due_days }) }}</span>
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Faktury -->
@@ -296,7 +325,8 @@ async function deleteClient() {
       <div v-else-if="!invoices.length" class="p-8 text-center text-neutral-500 text-sm">
         {{ t('common.no_data') }}
       </div>
-      <table v-else class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div v-else class="hidden md:block overflow-x-auto"><table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
           <tr>
             <th class="text-left px-4 py-2.5 font-medium">{{ t('invoice.varsymbol') }}</th>
@@ -329,7 +359,38 @@ async function deleteClient() {
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
+
+      <!-- Mobile: karty -->
+      <div v-if="invoices.length" class="md:hidden divide-y divide-neutral-100">
+        <div v-for="inv in invoices" :key="`m-${inv.id}`"
+          @click="router.push(`/invoices/${inv.id}`)"
+          class="cursor-pointer hover:bg-neutral-50 px-4 py-3"
+          :class="invoiceRowClass(inv.due_date, inv.status)">
+          <div class="flex items-baseline justify-between gap-2">
+            <div class="font-mono font-medium text-neutral-900">{{ inv.varsymbol || `#${inv.id}` }}</div>
+            <div class="font-mono text-sm font-semibold whitespace-nowrap">
+              {{ formatMoney(inv.amount_to_pay || inv.total_with_vat, inv.currency) }}
+            </div>
+          </div>
+          <div class="flex items-baseline justify-between gap-2 mt-1 text-xs text-neutral-500">
+            <span>{{ typeLabel(inv.invoice_type) }}</span>
+            <span>
+              <span>{{ formatDate(inv.issue_date) }}</span>
+              <span class="text-neutral-400 mx-1"> → </span>
+              <span :class="isOverdue(inv.due_date, inv.status) ? 'text-danger-500 font-medium' : ''">
+                {{ formatDate(inv.due_date) }}
+              </span>
+            </span>
+          </div>
+          <div class="mt-2">
+            <span class="text-xs px-2 py-0.5 rounded" :class="statusBadgeClass(inv.status)">
+              {{ statusLabel(inv.status) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div v-if="invoices.length" class="px-5 py-3 border-t border-neutral-200 flex items-center justify-between text-sm">
         <span class="text-neutral-500">{{ t('common.loaded_count', { loaded: invoices.length, total: invoicesTotal }) }}</span>
         <button v-if="invoicesPage < invoicesPages" @click="loadMoreInvoices" :disabled="invoicesLoadingMore"

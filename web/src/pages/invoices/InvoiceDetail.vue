@@ -83,6 +83,7 @@ function actionLabel(a: string): string {
     'invoice.approval_approved':      'invoice.actions.approval_approved',
     'invoice.approval_rejected':      'invoice.actions.approval_rejected',
     'invoice.approval_reset':         'invoice.actions.approval_reset',
+    'proforma.final_issued':          'invoice.actions.proforma_final_issued',
   }
   return map[a] ? (t(map[a]) as string) : a
 }
@@ -170,6 +171,25 @@ async function cancel() {
     }
   } catch (e: any) {
     toast.error( e?.response?.data?.error?.message || t('invoice.cancel_failed'))
+  } finally {
+    busy.value = null
+  }
+}
+
+async function issueFinalFromProforma() {
+  if (!invoice.value) return
+  if (invoice.value.invoice_type !== 'proforma' || invoice.value.status !== 'paid') return
+  if (!confirm(t('invoice.issue_final_confirm', { varsymbol: invoice.value.varsymbol || `#${invoice.value.id}` }))) return
+  busy.value = 'issue-final'
+  try {
+    const r = await invoicesApi.issueFinal(invoice.value.id)
+    if (!r?.final_invoice_id) {
+      toast.error(t('invoice.invalid_response'))
+      return
+    }
+    router.push(r.edit_url || `/invoices/${r.final_invoice_id}/edit`)
+  } catch (e: any) {
+    toast.error(e?.response?.data?.error?.message || t('invoice.issue_final_failed'))
   } finally {
     busy.value = null
   }
@@ -266,6 +286,8 @@ async function send() {
 }
 
 const isDraft = computed(() => invoice.value?.status === 'draft')
+const isProforma = computed(() => invoice.value?.invoice_type === 'proforma')
+const canIssueFinal = computed(() => isProforma.value && invoice.value?.status === 'paid')
 const isIssued = computed(() => invoice.value && ['issued', 'sent', 'reminded'].includes(invoice.value.status))
 const canCancel = computed(() => invoice.value && ['issued', 'sent', 'reminded', 'paid'].includes(invoice.value.status)
   && !['credit_note', 'cancellation'].includes(invoice.value.invoice_type))
@@ -418,8 +440,8 @@ async function updateApprovalStatus() {
 
   <div v-else-if="invoice" class="max-w-5xl space-y-4">
     <RouterLink to="/invoices" class="text-sm text-neutral-600 hover:text-neutral-900">{{ t('invoice.back_to_list') }}</RouterLink>
-    <div class="flex items-start justify-between gap-4">
-      <h1 class="text-2xl font-semibold flex items-center gap-3 flex-wrap">
+    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
+      <h1 class="text-2xl font-semibold flex items-center gap-3 flex-wrap min-w-0">
         <span v-if="invoice.varsymbol" class="font-mono">{{ invoice.varsymbol }}</span>
         <span v-else class="text-neutral-400 font-mono">{{ t('invoice.draft_id', { id: invoice.id }) }}</span>
         <span class="text-xs px-2 py-0.5 rounded font-normal" :class="statusBadgeClass(invoice.status)">
@@ -436,7 +458,7 @@ async function updateApprovalStatus() {
               : t('invoice.approval.status_' + approvalStatus) }}
         </span>
       </h1>
-      <div class="flex flex-wrap gap-2 justify-end">
+      <div class="flex flex-wrap gap-2 md:justify-end">
         <!-- Draft akce -->
         <RouterLink v-if="isDraft" :to="`/invoices/${invoice.id}/edit`"
           class="cursor-pointer px-3 h-9 text-sm border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50 inline-flex items-center gap-1.5">
@@ -491,6 +513,11 @@ async function updateApprovalStatus() {
           class="cursor-pointer px-3 h-9 text-sm border border-success-500/50 text-success-600 hover:bg-success-50 rounded-md inline-flex items-center gap-1.5">
           <svg class="w-4 h-4 text-success-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
           {{ t('invoice.mark_paid') }}
+        </button>
+        <button v-if="canIssueFinal" @click="issueFinalFromProforma" :disabled="busy !== null"
+          class="cursor-pointer px-3 h-9 text-sm bg-primary-600 hover:bg-primary-700 disabled:bg-neutral-300 text-white font-medium rounded-md inline-flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg>
+          {{ busy === 'issue-final' ? '…' : t('invoice.issue_final') }}
         </button>
       </div>
     </div>
@@ -617,10 +644,14 @@ async function updateApprovalStatus() {
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="bg-white border border-neutral-200 rounded-lg p-5 shadow-sm">
-        <h3 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 mb-3">{{ t('invoice.issue_date') }} / {{ t('invoice.tax_date') }} / {{ t('invoice.due_date') }}</h3>
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 mb-3">
+          {{ t('invoice.issue_date') }}
+          <template v-if="!isProforma"> / {{ t('invoice.tax_date') }}</template>
+          / {{ t('invoice.due_date') }}
+        </h3>
         <dl class="space-y-1.5 text-sm">
           <div class="flex justify-between"><dt class="text-neutral-500">{{ t('invoice.issue_date') }}</dt><dd>{{ formatDate(invoice.issue_date) }}</dd></div>
-          <div v-if="invoice.tax_date" class="flex justify-between"><dt class="text-neutral-500">{{ t('invoice.tax_date') }}</dt><dd>{{ formatDate(invoice.tax_date) }}</dd></div>
+          <div v-if="invoice.tax_date && !isProforma" class="flex justify-between"><dt class="text-neutral-500">{{ t('invoice.tax_date') }}</dt><dd>{{ formatDate(invoice.tax_date) }}</dd></div>
           <div class="flex justify-between"><dt class="text-neutral-500">{{ t('invoice.due_date') }}</dt><dd>{{ formatDate(invoice.due_date) }}</dd></div>
           <div v-if="invoice.paid_at" class="flex justify-between"><dt class="text-neutral-500">{{ t('status.paid') }}</dt><dd>{{ formatDate(invoice.paid_at) }}</dd></div>
         </dl>
@@ -655,7 +686,9 @@ async function updateApprovalStatus() {
       <div class="px-5 py-3 border-b border-neutral-200">
         <h3 class="text-sm font-semibold uppercase tracking-wide text-neutral-500">{{ t('invoice.items') }}</h3>
       </div>
-      <table class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div class="hidden md:block overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
           <tr>
             <th class="px-4 py-2 text-left font-medium">{{ t('invoice.items_table.description') }}</th>
@@ -679,6 +712,28 @@ async function updateApprovalStatus() {
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Mobile: stack karet -->
+      <div class="md:hidden divide-y divide-neutral-100">
+        <div v-for="item in invoice.items" :key="`m-${item.id}`" class="p-3 space-y-1.5">
+          <div class="text-sm whitespace-pre-wrap text-neutral-900">{{ item.description }}</div>
+          <div class="flex items-baseline justify-between text-xs text-neutral-500">
+            <span>
+              <span class="font-mono text-neutral-700">{{ item.quantity }}</span>
+              <span class="ml-1">{{ item.unit }}</span>
+              <span class="text-neutral-400 mx-1.5">·</span>
+              <span class="font-mono">{{ formatMoney(item.unit_price_without_vat, invoice.currency) }}</span>
+              <span class="text-neutral-400 mx-1.5">·</span>
+              <span>{{ formatPercent(item.vat_rate_snapshot ?? 0) }}</span>
+            </span>
+          </div>
+          <div class="flex items-baseline justify-between pt-1 text-sm">
+            <span class="text-xs text-neutral-500">{{ t('invoice.items_table.with_vat') }}</span>
+            <span class="font-mono font-semibold">{{ formatMoney(item.total_with_vat ?? 0, invoice.currency) }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Sumace -->
@@ -782,7 +837,9 @@ async function updateApprovalStatus() {
         <h3 class="text-sm font-semibold uppercase tracking-wide text-neutral-500">{{ t('invoice.work_report') }}</h3>
         <span class="text-sm text-neutral-700">{{ workReport.title }}</span>
       </header>
-      <table class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div class="hidden md:block overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
           <tr>
             <th class="text-left px-5 py-2 font-medium">{{ t('invoice.wr_description') }}</th>
@@ -808,6 +865,29 @@ async function updateApprovalStatus() {
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Mobile: stack karet -->
+      <div class="md:hidden divide-y divide-neutral-100">
+        <div v-for="(it, i) in workReport.items" :key="`m-${i}`" class="p-3 space-y-1">
+          <div class="text-sm whitespace-pre-wrap text-neutral-800">{{ it.description }}</div>
+          <div class="flex items-baseline justify-between text-xs text-neutral-500">
+            <span v-if="wrHasDates" class="font-mono">{{ formatDate(it.work_date) }}</span>
+            <span v-else></span>
+            <span>
+              <span class="font-mono text-neutral-700">{{ Number(it.hours).toLocaleString('cs', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} h</span>
+              <span class="text-neutral-400 mx-1.5">·</span>
+              <span class="font-mono">{{ formatMoney(it.rate, invoice.currency) }}</span>
+              <span class="text-neutral-400 mx-1.5">·</span>
+              <span class="font-mono font-semibold text-neutral-900">{{ formatMoney(Number(it.hours) * Number(it.rate), invoice.currency) }}</span>
+            </span>
+          </div>
+        </div>
+        <div class="bg-neutral-50 p-3 flex items-center justify-between font-semibold">
+          <span class="font-mono">Σ {{ workReport.total_hours.toLocaleString('cs', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} h</span>
+          <span class="font-mono">{{ formatMoney(workReport.total_amount, invoice.currency) }}</span>
+        </div>
+      </div>
     </div>
 
     <!-- Stav schválení výkazu — viditelné jen pokud projekt vyžaduje + výkaz existuje -->

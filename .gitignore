@@ -9,12 +9,15 @@ cfg.local.php
 private/
 storage/
 api/vendor/
+api/vendor.prod/
 api/.phpunit.cache/
 web/node_modules/
 web/dist/
+web/dist.bak/
 manual/generated/
+manual/generated.bak/
 publish.cmd
-production.cmd
+last_deploy.log
 
 # OS junk
 .DS_Store

@@ -205,7 +205,7 @@ async function submit(decision: 'approve' | 'reject') {
               <span class="text-sm text-neutral-700">{{ data.work_report.title }}</span>
             </header>
             <div class="overflow-x-auto">
-              <table class="w-full text-sm">
+              <table class="w-full text-sm table-sticky-first">
                 <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
                   <tr>
                     <th class="px-4 py-2 text-left font-medium">{{ tt('Popis', 'Description') }}</th>

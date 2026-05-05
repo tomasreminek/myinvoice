@@ -70,7 +70,9 @@ function codeLabel(code: string): string {
     <div v-if="loading" class="text-center text-neutral-500 py-12 text-sm">{{ t('common.loading') }}</div>
 
     <div v-else class="bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden">
-      <table class="w-full text-sm">
+      <!-- Desktop: tabulka -->
+      <div class="hidden md:block overflow-x-auto">
+      <table class="w-full text-sm table-sticky-first">
         <thead class="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
           <tr>
             <th class="text-left px-4 py-2 font-medium">{{ t('client.title') /* "Šablona" — reuse */ }}</th>
@@ -93,6 +95,23 @@ function codeLabel(code: string): string {
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Mobile: karty -->
+      <div class="md:hidden divide-y divide-neutral-100">
+        <div v-for="it in list" :key="`m-${it.code}.${it.locale}`"
+          @click="open(it)"
+          class="cursor-pointer hover:bg-neutral-50 px-4 py-3">
+          <div class="flex items-baseline justify-between gap-2">
+            <div class="font-medium text-neutral-900 truncate">{{ codeLabel(it.code) }}</div>
+            <span class="font-mono text-xs uppercase text-neutral-500 whitespace-nowrap">{{ it.locale }}</span>
+          </div>
+          <div class="mt-1.5">
+            <span v-if="it.has_override" class="text-xs px-2 py-0.5 rounded bg-warning-50 text-warning-600">{{ t('users.et_has_override') }}</span>
+            <span v-else class="text-xs text-neutral-400">{{ t('users.et_default') }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Editor modal -->
