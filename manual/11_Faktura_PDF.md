@@ -172,19 +172,84 @@ U odeslaných verzí navíc vidíš **kam to šlo** (seznam příjemců).
 > Pokud potřebuješ ušetřit místo, použij ruční smazání jen u
 > neodeslaných invalidačních verzí (zatím není UI; přes SQL).
 
-## 11.6 Editace vystavené faktury (admin only)
+## 11.6 Admin akce nad vystavenou fakturou
+
+Sekce **Další akce** v detailu faktury skrývá několik nástrojů, které jsou
+přístupné jen adminovi a používají se v krajních případech.
+
+### 11.6.1 Editace vystavené faktury (force=1)
 
 V krajní nouzi (admin udělal v vystavené faktuře překlep, klient ji ještě
 nedostal):
 
-1. Z detailu faktury klikni **Editovat (force)** — vyžaduje admin roli.
+1. Z detailu faktury klikni **Upravit (admin)** — vyžaduje admin roli.
 2. Otevře se editor s URL `?force=1`.
-3. Změny se uloží + původní PDF se invaliduje + zaloguje se `invoice.edit_force`
+3. Změny se uloží + původní PDF se invaliduje + zaloguje se `invoice.force_updated`
    v activity logu.
 
 > ⚠️ **Editace vystavené faktury obecně NENÍ doporučená.** Změny snapshotů
 > mohou být rozpor s tím, co klient dostal e-mailem. Preferuj **storno + nová
 > faktura** nebo **dobropis**.
+
+> 🛈 **Var. symbol je immutable** — force-edit ho NEzmění. Pokud chceš číslo
+> změnit, vystav storno/dobropis a fakturu znovu pod novým číslem.
+
+### 11.6.2 Nezaplacené (vrátit ze stavu paid)
+
+Tlačítko **Nezaplacené** je viditelné jen u faktur ve stavu `paid` (admin only).
+Vrátí fakturu ze stavu zaplacené zpět do `sent` (pokud byla odeslaná) nebo
+`issued`, vyčistí `paid_at` a přepočítá revenue stats.
+
+Použití:
+
+- Někdo omylem označil fakturu jako zaplacenou (špatný klik na „Označit jako
+  zaplacené").
+- Přišla ti vratka — peníze odešly zpět klientovi, takže faktura už není
+  reálně zaplacená.
+
+> ⚠️ **Pokud má faktura spárovanou bankovní transakci**, akce vrátí 409 chybu
+> s návodem. V tom případě musíš nejdřív v detailu výpisu kliknout **Zrušit
+> spárování** — ta cascade sama vrátí jak transakci, tak fakturu zpátky
+> (faktura → `issued`, transakce → `unmatched`).
+
+Activity log: `invoice.unmark_paid` s `previous_paid_at` pro forenzní stopu.
+
+### 11.6.3 Smazání vystavené faktury (force-delete, admin)
+
+Force-delete je 3. možnost ve **Storno / Dobropis** modalu (otevřeš tlačítkem
+„Storno / Dobropis" v detailu vystavené faktury). Volby v modalu:
+
+1. **Vystavit dobropis** (preferované) — vytvoří draft dobropisu se zápornými
+   položkami, klient dostane oficiální opravu.
+2. **Stornovat (interní)** — interní označení, klient nedostane nic.
+3. **⚠ Smazat fakturu (admin, force-delete)** — admin only.
+
+Třetí možnost **nenávratně odstraní účetní doklad** z databáze:
+
+- Cached PDF se z disku smaže (`storage/invoices/sup-X/`).
+- Archiv odeslaných verzí (PDF historie) se vymaže — fyzické soubory
+  v `_archive/` i DB řádky.
+- Uživatelské přílohy z `attachments/{invoiceId}/` se vymažou.
+- Pokud má faktura **navazující storno nebo dobropis**, smažou se
+  ZÁROVEŇ přes ON DELETE CASCADE (FK `parent_invoice_id`).
+- Pokud byla spárovaná s bankovní transakcí, transakce zůstane jen ztratí
+  pair (najdeš ji znovu v nespárovaných).
+- Var. symbol se uvolní pro znovupoužití.
+- Revenue / KPI dashboardu i u klienta/zakázky se přepočítají.
+- Activity log: `invoice.force_deleted` s detaily (status, total, currency,
+  cascade_deleted_ids, počet smazaných souborů).
+
+Před skutečným smazáním systém ukáže **detailní per-status varování**
+(jiné pro vystavenou / odeslanou / zaplacenou / stornovanou) s doporučenou
+alternativou (storno / dobropis / Nezaplacené).
+
+> ⚠️ **Force-delete vystavené faktury používej výjimečně.** Účetní doklad
+> může být v evidenci u tvé účetní, klient ho má v emailu. Smazání u tebe
+> nevymaže to, co má klient nebo účetní. Defaultní řešení je **vystavit
+> dobropis** — účetně správné a nechá auditní stopu.
+
+> 💡 **Typický legální use case:** vystavil jsi fakturu omylem (jiný klient,
+> špatná částka) a klient ji ještě nedostal. Pokud už dostal, vystav dobropis.
 
 ## 11.7 Změna bankovního účtu po vystavení
 

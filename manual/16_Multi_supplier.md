@@ -71,6 +71,8 @@ Každý dodavatel má vlastní:
 - **Měny** + bankovní účty (CZK + EUR + …)
 - **Číselnou řadu varsymbolů** (každý dodavatel má samostatné `2605001`,
   `2605002`, …)
+- **Šablonu čísla faktury** — vlastní formát per typ dokladu (`{YY}{MM}{CCC}`,
+  `JD{YYYY}-{CC}`, …) + reset cyklu (rok / měsíc / nikdy) — viz § 16.5.4
 - **Výchozí nastavení** — splatnost, hodinová sazba, DPH
 - **E-mailové šablony** (faktura nová / upomínka / reset hesla)
 - **Pohoda kódy** pro export
@@ -104,7 +106,58 @@ NOVÝCH fakturách. Vystavené mají vlastní snapshot.
 | From: jméno | Jak se zobrazí odesílatel u příjemce („Faktury MyWebdesign" místo „myinvoice@server") |
 | Reply-To | Adresa pro odpověď klienta („fakturace@mywebdesign.cz") |
 
-### 16.5.3 Pohoda kódy
+### 16.5.3 Číslování faktur
+
+V detailu dodavatele najdeš sekci **Číslování faktur** se šablonami pro každý
+typ dokladu a volbou cyklu, kdy se pořadové číslo resetuje.
+
+**Šablony (per typ dokladu):**
+
+| Pole | Co zadat |
+|---|---|
+| Šablona pro fakturu | např. `{YY}{MM}{CCC}` → `2605001` (default) nebo `JD{YYYY}-{CCC}` → `JD2026-001` |
+| Šablona pro zálohovou | např. `9{YY}{MM}{CCC}` → `92605001` (prefix 9 = záloha) |
+| Šablona pro dobropis | např. `7{YY}{MM}{CCC}` → `72605001` (prefix 7 = dobropis) |
+
+Placeholdery:
+
+| Token | Význam | Příklad pro 2026-04, counter=42 |
+|---|---|---|
+| `{YYYY}` | 4-ciferný rok | `2026` |
+| `{YY}` | 2-ciferný rok | `26` |
+| `{MM}` | číslo měsíce (01..12) | `04` |
+| `{C}`, `{CC}`, `{CCC}`… | counter, padding podle počtu C | `42`, `42`, `042` |
+
+> 🛈 Pole nech **prázdné** a systém použije fallback z `cfg.varsymbol.templates`
+> (default `{YY}{MM}{CCC}` pro fakturu, `9{YY}{MM}{CCC}` pro proformu,
+> `7{YY}{MM}{CCC}` pro dobropis). Vyplň, jen když chceš vlastní řadu.
+
+Pod každým polem **live preview** ukazuje, jak by vypadalo příští číslo
+(např. „Náhled: `JD2026-001`"). Když chybí counter (`{C+}`), pole je červené
+s chybou „Chybí counter".
+
+**Reset číselné řady:**
+
+| Hodnota | Kdy se counter vrací na 1 |
+|---|---|
+| **Roční** (`year`) | 1. ledna |
+| **Měsíční** (`month`) | 1. dne v měsíci (default — backwards compat s legacy chováním) |
+| **Bez resetu** (`none`) | Nikdy — souvislá číselná řada napříč roky |
+
+> ⚠️ **Změna cyklu uprostřed roku** může vyrobit duplicitní čísla. Pokud
+> přepneš z `month` na `year` a šablona obsahuje `{MM}`, dostaneš v dalším
+> měsíci stejné `{YY}{MM}001` jako už máš v evidenci. Backend chytne přes
+> 409 chybu při Vystavení, ale doporučujeme spolu s změnou cyklu **upravit
+> i šablonu** (pro `year` vyhoď `{MM}`, pro `none` vyhoď `{YY}` i `{MM}`).
+
+**Kde se to projeví:**
+
+- V editoru konceptu vidíš **placeholder** s předpokládaným číslem (preview).
+- Při Vystavení (Issue) se atomicky vezme další counter z DB a uloží jako
+  immutable `varsymbol`.
+- V editoru konceptu můžeš číslo přepsat ručně — viz [§ 10.2.5](10_Faktura_editor.md#1025-číslo-dokladu--ruční-override-volitelné).
+
+### 16.5.4 Pohoda kódy
 
 | Pole | Význam | Příklad |
 |---|---|---|

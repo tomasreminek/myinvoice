@@ -49,6 +49,30 @@ Editor je rozdělený na tři bloky:
 - **Reverse charge** — checkbox; pokud zatržené, faktura bude bez DPH s textem
   „Daň přiznává odběratel". Předvyplní se z klienta.
 
+### 10.2.5 Číslo dokladu — ruční override (volitelné)
+
+V hlavičce konceptu je pole **Číslo faktury** (resp. „Číslo zálohové faktury" /
+„Číslo dobropisu" podle typu). Pole je **volitelné**:
+
+- **Prázdné** — při Vystavení (status `draft → issued`) systém automaticky
+  vygeneruje číslo dle šablony (per-dodavatel v Nastavení nebo globální cfg).
+  V placeholderu pole vidíš live náhled, např. `2605002` — to je číslo, které
+  fakturu dostane, pokud nepřepíšeš.
+- **Vyplněné** — backend použije přesně tvou hodnotu, neinkrementuje counter.
+  Při Vystavení se ověří, že číslo není už použité u jiné faktury **stejného
+  dodavatele** (jinak vrátí chybu „Číslo už existuje…"). Max 20 znaků.
+
+> 💡 **Použití:** standardně nech prázdné, automatika tě nezklame. Manual
+> override použij jen výjimečně — např. když migruješ historickou fakturu
+> z jiného systému a potřebuješ zachovat originální číslo.
+
+> ⚠️ **Po Vystavení je číslo immutable** — admin force-edit ho NEodemkne.
+> Pokud chceš číslo změnit, musíš vystavit storno/dobropis a fakturu vystavit
+> znovu pod jiným číslem.
+
+Šablonu pro automatické generování nastavuješ v **Systém → Dodavatelé →
+[tvůj dodavatel] → Číslování faktur** — viz [§ 16.5.3](16_Multi_supplier.md#1653-číslování-faktur).
+
 ## 10.3 Položky
 
 Tabulka řádků faktury. Tlačítko **+ Přidat položku** přidá nový řádek.

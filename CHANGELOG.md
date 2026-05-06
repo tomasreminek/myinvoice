@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-05-06
+
+Hlavní release s novými adminovskými workflow nad účetními doklady, plně
+konfigurovatelnou číselnou řadou per dodavatel, ručním overridem čísel
+a uživatelskými přílohami k mailu.
+
+### Added
+
+- **Volitelné přílohy k dokladu** (migrace 0013) — uživatel nahraje PDF /
+  Office / obrázky k faktuře, proformě nebo dobropisu, soubory se přibalí
+  k mailu při Odeslat / Test odeslat. Limity 10 MiB / soubor, 20 MiB / fakturu;
+  whitelist MIME (PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT/ODS/ODP, TXT/CSV,
+  JPG/PNG/GIF/WEBP/HEIC/HEIF, ZIP) s detekcí z obsahu (finfo) a kontrolou
+  shody s příponou. Funguje i pro koncepty. Drag-drop UI v detailu faktury.
+  K upomínkám / approval mailu se přílohy NEpřibalují.
+- **Per-supplier šablony čísla faktury** (migrace 0014) — v Nastavení dodavatele
+  → Číslování faktur. 3 šablony per typ (faktura / proforma / dobropis),
+  placeholdery `{YYYY}`, `{YY}`, `{MM}`, `{C+}` (variabilní padding).
+  NULL = fallback na globální `cfg.varsymbol.templates`. Live preview v UI
+  + inline error pokud chybí counter.
+- **Reset cyklu číselné řady** — ENUM `year` / `month` / `none`, default
+  `month` zachová zpětnou kompatibilitu s legacy CHAR(6) period klíčem.
+- **Manuální override čísla v editoru** — pole „Číslo faktury" / „Číslo
+  zálohové faktury" / „Číslo dobropisu" v hlavičce konceptu. Prázdné =
+  auto-generuje se při Issue, vyplněné = backend použije přesně tu hodnotu
+  s duplicate-check per supplier (409 `varsymbol_duplicate`). Po Issue je
+  číslo immutable (force=1 nepřepíše).
+- **Preview API** `GET /api/invoices/preview-varsymbol` pro live placeholder
+  v editoru.
+- **Tlačítko Nezaplacené** (admin) — vrátí fakturu ze stavu `paid` zpět do
+  `sent` (pokud byla odeslaná) nebo `issued`, vyčistí `paid_at`. 409 pokud
+  je faktura spárovaná s aktivní bank tx (uživatel má použít bank unmatch
+  flow). Activity log: `invoice.unmark_paid`.
+- **Force-delete vystavené faktury** (admin, migrace 0015) — třetí možnost
+  ve Storno / Dobropis modalu. ON DELETE CASCADE pro `parent_invoice_id`
+  (smazání rodiče cascade odstraní storno/dobropis i jejich items / work
+  reports / PDF historii / přílohy). Detailní per-status varování
+  (vystavená / odeslaná / zaplacená / stornovaná) s doporučenou alternativou.
+  Pre-delete: invalidace cached PDF, **purge fyzických souborů** PDF historie
+  + uživatelských příloh z disku. Activity log: `invoice.force_deleted`
+  s `cascade_deleted_ids`, `purged_pdf_files`, `purged_attachments`.
+- **Type-aware texty v editoru** — H1 a label pole čísla se mění dle typu
+  („Upravit dobropis" + „Číslo dobropisu" pro `credit_note`, atd.).
+- **Manuál**: nové sekce 10.2.5 (Číslo dokladu — ruční override),
+  11.6 (Admin akce nad vystavenou fakturou), 16.5.3 (Číslování faktur).
+
+### Changed
+
+- **DeleteInvoiceAction** — rozšířený o role guard (non-draft jen admin),
+  cascade delete dětí, recompute revenue stats po smazání, detailnější
+  audit log. Backend i UI mají stejné role pravidlo.
+- **CancelInvoiceAction modal** — přejmenování Storno/Dobropis modalu na
+  3-volbový (vystavit dobropis / interní storno / **smazat fakturu**).
+- **Sekce „Další akce" v detailu** dostupná i pro koncept (Test odeslání +
+  Detail klienta), tlačítko „Upravit (admin)" pro draft skryté (nahoře už
+  je „Upravit").
+
 ## [1.9.1] — 2026-05-05
 
 ### Fixed
