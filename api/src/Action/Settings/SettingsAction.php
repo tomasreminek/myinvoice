@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MyInvoice\Action\Settings;
 
 use MyInvoice\Http\Json;
+use MyInvoice\Infrastructure\Config\Config;
 use MyInvoice\Infrastructure\Database\Connection;
 use MyInvoice\Middleware\AuthMiddleware;
 use MyInvoice\Middleware\SupplierScopeMiddleware;
@@ -34,6 +35,7 @@ final class SettingsAction
         private readonly ActivityLogger $logger,
         private readonly IpMatcher $ipMatcher,
         private readonly InvoicePdfRenderer $pdf,
+        private readonly Config $config,
     ) {}
 
     /** Aktuální supplier (z X-Supplier-Id middleware). */
@@ -304,6 +306,14 @@ final class SettingsAction
         $row['default_payment_due_days'] = (int) $row['default_payment_due_days'];
         $row['default_hourly_rate']      = (float) $row['default_hourly_rate'];
         $row['auto_send_reminders']      = (bool) $row['auto_send_reminders'];
+        // Globální cfg fallback pro varsymbol — UI ho použije jako placeholder
+        // u prázdných per-supplier polí (aby uživatel viděl, jaká šablona by se
+        // použila kdyby ponechal pole prázdné).
+        $row['cfg_varsymbol_fallback'] = [
+            'invoice'     => (string) $this->config->get('varsymbol.templates.invoice', ''),
+            'proforma'    => (string) $this->config->get('varsymbol.templates.proforma', ''),
+            'credit_note' => (string) $this->config->get('varsymbol.templates.credit_note', ''),
+        ];
         return Json::ok($response, $row);
     }
 

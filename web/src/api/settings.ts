@@ -38,6 +38,13 @@ export interface Supplier {
   proforma_number_format: string | null
   credit_note_number_format: string | null
   invoice_number_period: 'year' | 'month' | 'none'
+  // Globální cfg fallback (read-only) — UI ho ukáže jako placeholder
+  // v prázdných polích per-supplier šablon. Hodnota přichází z cfg.varsymbol.templates.
+  cfg_varsymbol_fallback?: {
+    invoice: string
+    proforma: string
+    credit_note: string
+  }
 }
 
 export interface CurrencyAccount {

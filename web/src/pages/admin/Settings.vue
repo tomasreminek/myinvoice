@@ -242,7 +242,8 @@ async function removeCurrency(c: CurrencyAccount) {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-medium text-neutral-700 mb-1">{{ t('settings.invoice_number_format') }}</label>
-              <input v-model="supplier.invoice_number_format" type="text" placeholder="{YY}{MM}{CCC}" maxlength="60"
+              <input v-model="supplier.invoice_number_format" type="text"
+                :placeholder="supplier.cfg_varsymbol_fallback?.invoice || '{YY}{MM}{CCC}'" maxlength="60"
                 class="w-full h-9 px-3 border rounded-md text-sm font-mono"
                 :class="invoiceFormatError ? 'border-danger-500 bg-danger-50' : 'border-neutral-300'" />
               <p v-if="invoiceFormatError" class="text-xs text-danger-500 mt-1">{{ invoiceFormatError }}</p>
@@ -262,7 +263,8 @@ async function removeCurrency(c: CurrencyAccount) {
             </div>
             <div>
               <label class="block text-xs font-medium text-neutral-700 mb-1">{{ t('settings.proforma_number_format') }}</label>
-              <input v-model="supplier.proforma_number_format" type="text" placeholder="9{YY}{MM}{CCC}" maxlength="60"
+              <input v-model="supplier.proforma_number_format" type="text"
+                :placeholder="supplier.cfg_varsymbol_fallback?.proforma || '9{YY}{MM}{CCC}'" maxlength="60"
                 class="w-full h-9 px-3 border rounded-md text-sm font-mono"
                 :class="proformaFormatError ? 'border-danger-500 bg-danger-50' : 'border-neutral-300'" />
               <p v-if="proformaFormatError" class="text-xs text-danger-500 mt-1">{{ proformaFormatError }}</p>
@@ -273,7 +275,8 @@ async function removeCurrency(c: CurrencyAccount) {
             </div>
             <div>
               <label class="block text-xs font-medium text-neutral-700 mb-1">{{ t('settings.credit_note_number_format') }}</label>
-              <input v-model="supplier.credit_note_number_format" type="text" placeholder="7{YY}{MM}{CCC}" maxlength="60"
+              <input v-model="supplier.credit_note_number_format" type="text"
+                :placeholder="supplier.cfg_varsymbol_fallback?.credit_note || '7{YY}{MM}{CCC}'" maxlength="60"
                 class="w-full h-9 px-3 border rounded-md text-sm font-mono"
                 :class="creditNoteFormatError ? 'border-danger-500 bg-danger-50' : 'border-neutral-300'" />
               <p v-if="creditNoteFormatError" class="text-xs text-danger-500 mt-1">{{ creditNoteFormatError }}</p>
