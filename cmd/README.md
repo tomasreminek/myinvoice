@@ -28,7 +28,9 @@ samotného skriptu, takže jsou přenositelné mezi `C:\inetpub\wwwroot\…`,
 | Skript | Co dělá |
 |---|---|
 | `docker-build.{sh,ps1}` | `docker compose build app` — postaví image (volitelné `--no-cache`, `--pull`) |
-| `docker-install.{sh,ps1}` | First-run setup: vygeneruje `.env` + `cfg.docker.php`, postaví image, `up -d`, počká na DB healthcheck, spustí migrace, vypíše URL setup wizardu |
+| `docker-install.{sh,ps1}` | First-run setup: vygeneruje `.env` + `cfg.docker.php`, postaví image **z lokálních zdrojů**, `up -d`, počká na DB healthcheck, spustí migrace, vypíše URL setup wizardu |
+| `docker-ghcr.{sh,ps1}` | One-click install **z pre-built image na GHCR** (`ghcr.io/radekhulan/myinvoice:latest`) — žádný local build. Stejně jako install vygeneruje `.env` + `cfg.docker.php`, místo `build` udělá `pull`, pak `up -d` + migrace |
+| `docker-update.{sh,ps1}` | Update běžící instance — auto-detekce: `git pull` + rebuild (source mode) **nebo** `pull` z GHCR (registry mode), pak `up -d` + migrace |
 
 ### Build / deploy / kvalita
 
@@ -125,6 +127,38 @@ a `cfg.docker.php` přeskočí). Po dokončení běží aplikace na
 cmd/docker-build.sh --no-cache    # po změnách v Dockerfile / composer.json / pnpm-lock.yaml
 cmd/docker-build.sh --pull        # pull nových verzí base images (php:8.5-apache, mariadb:11)
 ```
+
+### One-click instalace z GHCR (bez local buildu)
+
+Pokud nechceš stavět image lokálně (a `pnpm`/`composer` v hostu řešit
+vůbec), použij `docker-ghcr` — stáhne pre-built multi-arch image z
+[ghcr.io/radekhulan/myinvoice](https://github.com/radekhulan/myinvoice/pkgs/container/myinvoice)
+a zbytek (random hesla, `cfg.docker.php`, `up -d`, migrace) je shodný
+s `docker-install`:
+
+```bash
+# Linux / macOS
+cmd/docker-ghcr.sh
+
+# Windows PowerShell
+.\cmd\docker-ghcr.ps1
+```
+
+Skript používá **`docker-compose.production.yml`** (image-only, žádný
+`build:` block), takže další compose příkazy vyžadují flag `-f`:
+
+```bash
+docker compose -f docker-compose.production.yml logs -f app
+docker compose -f docker-compose.production.yml pull          # update na novější tag
+docker compose -f docker-compose.production.yml up -d
+docker compose -f docker-compose.production.yml down          # stop (data persist)
+```
+
+> 💡 V produkci pinuj konkrétní verzi (`:1.7.0` místo `:latest`)
+> editací `docker-compose.production.yml` před prvním `pull`.
+
+Pro **update** běžícího GHCR deploye stačí `cmd/docker-update.sh`
+(auto-detekuje registry mode = `pull` + `up -d` + migrace) — viz výše.
 
 ### Konfigurace přes `.env`
 

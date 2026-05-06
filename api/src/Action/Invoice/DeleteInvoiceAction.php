@@ -11,6 +11,7 @@ use MyInvoice\Middleware\AuthMiddleware;
 use MyInvoice\Repository\InvoiceAttachmentRepository;
 use MyInvoice\Repository\InvoiceRepository;
 use MyInvoice\Service\ActivityLogger;
+use MyInvoice\Service\Invoice\VarsymbolGenerator;
 use MyInvoice\Service\IpMatcher;
 use MyInvoice\Service\Pdf\InvoicePdfRenderer;
 use MyInvoice\Service\Pdf\PdfArchiveService;
@@ -50,6 +51,7 @@ final class DeleteInvoiceAction
         private readonly PdfArchiveService $pdfArchive,
         private readonly InvoiceAttachmentRepository $attachments,
         private readonly StatsRecomputer $stats,
+        private readonly VarsymbolGenerator $varsymbol,
     ) {}
 
     public function __invoke(Request $request, Response $response, array $args): Response
@@ -79,7 +81,7 @@ final class DeleteInvoiceAction
         // Najdi všechny child doklady (storno, dobropis) — díky CASCADE se smažou
         // s parentem, ale chceme je zalogovat a invalidovat jejich PDF cache (DB to neudělá).
         $children = $this->db->pdo()->prepare(
-            'SELECT id, invoice_type, varsymbol, status FROM invoices WHERE parent_invoice_id = ?'
+            'SELECT id, invoice_type, varsymbol, status, issue_date FROM invoices WHERE parent_invoice_id = ?'
         );
         $children->execute([$id]);
         $childRows = $children->fetchAll(\PDO::FETCH_ASSOC);
@@ -108,6 +110,31 @@ final class DeleteInvoiceAction
         $clientId  = isset($existing['client_id'])  ? (int) $existing['client_id']  : null;
         $projectId = isset($existing['project_id']) && $existing['project_id'] ? (int) $existing['project_id'] : null;
 
+        // 1c. Pokud je tato faktura "poslední" ve své counter scope (a stejně tak
+        // její cascade-deleted credit_note potomci), uvolni counter — další vystavená
+        // dostane stejné číslo. Drafty nemají counter-derived varsymbol; cancellation
+        // nedostává varsymbol z counteru vůbec (IssueInvoiceAction).
+        $counterReleased = [];
+        if ($supplierId > 0 && $status !== 'draft') {
+            $parentType = (string) ($existing['invoice_type'] ?? '');
+            $parentVs   = (string) ($existing['varsymbol'] ?? '');
+            if ($parentVs !== '' && in_array($parentType, ['invoice', 'proforma', 'credit_note'], true)) {
+                $issueDate = !empty($existing['issue_date']) ? new \DateTimeImmutable($existing['issue_date']) : null;
+                if ($this->varsymbol->releaseIfLatest($supplierId, $parentType, $parentVs, $issueDate)) {
+                    $counterReleased[] = ['id' => $id, 'varsymbol' => $parentVs, 'type' => $parentType];
+                }
+            }
+        }
+        foreach ($childRows as $child) {
+            $ctype = (string) ($child['invoice_type'] ?? '');
+            $cvs   = (string) ($child['varsymbol'] ?? '');
+            if ($cvs === '' || !in_array($ctype, ['invoice', 'proforma', 'credit_note'], true)) continue;
+            $cdate = !empty($child['issue_date']) ? new \DateTimeImmutable($child['issue_date']) : null;
+            if ($this->varsymbol->releaseIfLatest($supplierId, $ctype, $cvs, $cdate)) {
+                $counterReleased[] = ['id' => (int) $child['id'], 'varsymbol' => $cvs, 'type' => $ctype];
+            }
+        }
+
         // 2. Vlastní delete (CASCADE smaže items, work_reports, child invoices,
         //    invoice_pdfs, invoice_attachments — vše nahoru na FK invoice_id)
         $this->repo->delete($id);
@@ -133,11 +160,13 @@ final class DeleteInvoiceAction
                 'varsymbol' => $c['varsymbol'],
                 'status'    => $c['status'],
             ], $childRows),
+            'counter_released'    => $counterReleased,
         ], $ip, $request->getHeaderLine('User-Agent'));
 
         return Json::ok($response, [
-            'ok'              => true,
-            'cascade_deleted' => count($childRows),
+            'ok'               => true,
+            'cascade_deleted'  => count($childRows),
+            'counter_released' => count($counterReleased),
         ]);
     }
 }

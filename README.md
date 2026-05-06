@@ -144,6 +144,22 @@ Otevři **http://localhost:8080** → setup wizard.
 > 💡 V produkci pinuj konkrétní verzi — v `docker-compose.yml` změň `:latest`
 > na `:1.2.0`. Update pak: bumpni tag, `docker compose pull && up -d`, spusť `migrate.php`.
 
+> 💡 **Pokud už máš repo naklonované**, místo manuálního flow výše stačí jeden
+> příkaz — `cmd/docker-ghcr.{sh,ps1}` udělá totéž (random `.env`, `cfg.docker.php`
+> z `cfg.sample.php`, `docker compose pull`, `up -d`, migrace) přes
+> `docker-compose.production.yml`:
+>
+> ```bash
+> # Linux / macOS
+> cmd/docker-ghcr.sh
+>
+> # Windows PowerShell
+> .\cmd\docker-ghcr.ps1
+> ```
+>
+> Další compose příkazy pak vyžadují `-f docker-compose.production.yml`
+> (logs, pull, down…).
+
 ### Varianta B — build z source (pro vývoj)
 
 S klonem repa máš přístup k celému kódu, můžeš upravovat a build si vyrobí lokálně.

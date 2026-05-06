@@ -98,6 +98,50 @@ final class VarsymbolGenerator
         return $this->render($template, $for, $current + 1);
     }
 
+    /**
+     * Pokud je daná faktura "poslední" ve své counter scope (její varsymbol odpovídá
+     * aktuální hodnotě counteru), dekrementuj counter — to umožní, aby další vystavená
+     * faktura ve stejné scope dostala stejné číslo.
+     *
+     * Volej PŘED vlastním DELETE z DB (potřebujeme issue_date a varsymbol). Idempotentní:
+     * pokud counter neodpovídá (nepasuje render, byla manuálně přečíslovaná, mezitím
+     * inkrementoval konkurenční zápis), nic neudělá.
+     *
+     * @return bool true pokud byl counter dekrementován
+     */
+    public function releaseIfLatest(int $supplierId, string $invoiceType, string $varsymbol, ?\DateTimeInterface $for = null): bool
+    {
+        if ($supplierId <= 0 || $varsymbol === '' || !in_array($invoiceType, self::SUPPORTED_TYPES, true)) {
+            return false;
+        }
+
+        [$template, $period] = $this->resolveTemplateAndPeriod($supplierId, $invoiceType);
+        if ($template === '') return false;
+
+        $for       = $for ?? new \DateTimeImmutable('today');
+        $periodKey = $this->makePeriodKey($period, $for);
+
+        $pdo = $this->db->pdo();
+        $stmt = $pdo->prepare(
+            'SELECT last_number FROM invoice_counters WHERE supplier_id = ? AND invoice_type = ? AND period = ?'
+        );
+        $stmt->execute([$supplierId, $invoiceType, $periodKey]);
+        $current = (int) ($stmt->fetchColumn() ?: 0);
+        if ($current <= 0) return false;
+
+        if ($this->render($template, $for, $current) !== $varsymbol) {
+            return false;
+        }
+
+        $upd = $pdo->prepare(
+            'UPDATE invoice_counters SET last_number = last_number - 1
+             WHERE supplier_id = ? AND invoice_type = ? AND period = ? AND last_number = ?'
+        );
+        $upd->execute([$supplierId, $invoiceType, $periodKey, $current]);
+
+        return $upd->rowCount() > 0;
+    }
+
     public function render(string $template, \DateTimeInterface $date, int $counter): string
     {
         $vars = [

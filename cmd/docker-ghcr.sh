@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# One-click install z pre-built image na GHCR (žádný local build).
+#
+#   1. Vygeneruje .env s random DB hesly (pokud chybí)
+#   2. Vygeneruje cfg.docker.php z cfg.sample.php s random secrets (pokud chybí)
+#   3. docker compose pull (image z ghcr.io/radekhulan/myinvoice:latest)
+#   4. docker compose up -d
+#   5. Počká na DB health a spustí migrace
+#   6. Vypíše URL k setup wizardu
+#
+# Používá docker-compose.production.yml (image pull, žádný build).
+# Idempotentní — bezpečné spouštět opakovaně.
+set -euo pipefail
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+COMPOSE_FILE="docker-compose.production.yml"
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: docker not found in PATH" >&2; exit 1
+fi
+if ! docker compose version >/dev/null 2>&1; then
+  echo "ERROR: 'docker compose' (v2) plugin required" >&2; exit 1
+fi
+if [[ ! -f "$COMPOSE_FILE" ]]; then
+  echo "ERROR: $COMPOSE_FILE not found in $PROJECT_ROOT" >&2; exit 1
+fi
+
+COMPOSE=(docker compose -f "$COMPOSE_FILE")
+
+# --- 1. .env ---------------------------------------------------------------
+if [[ ! -f .env ]]; then
+  echo "==> Generating .env with random DB passwords…"
+  DB_ROOT_PASSWORD=$(openssl rand -base64 24 | tr -d '=+/' | head -c 28)
+  DB_PASSWORD=$(openssl rand -base64 24      | tr -d '=+/' | head -c 28)
+  cat > .env <<EOF
+# MyInvoice.cz — Docker compose env (gitignored)
+APP_PORT=8080
+DB_PORT=3307
+DB_NAME=myinvoice
+DB_USER=myinvoice
+DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+DB_PASSWORD=${DB_PASSWORD}
+EOF
+  echo "    .env written (passwords randomised)"
+else
+  echo "==> .env already exists (skipping)"
+fi
+set -a; . ./.env; set +a
+
+# --- 2. cfg.docker.php -----------------------------------------------------
+if [[ ! -f cfg.docker.php ]]; then
+  echo "==> Generating cfg.docker.php from cfg.sample.php with Docker defaults…"
+  PEPPER=$(openssl rand -base64 32)
+  ENC_KEY=$(openssl rand -base64 32)
+  cp cfg.sample.php cfg.docker.php
+  APP_URL="http://localhost:${APP_PORT}"
+  sed -i.bak \
+      -e "0,/'host'    => '127\.0\.0\.1',/s|'host'    => '127\.0\.0\.1',|'host'    => 'db',|" \
+      -e "0,/'host'    => '127\.0\.0\.1',/s|'host'    => '127\.0\.0\.1',|'host'    => 'redis',|" \
+      -e "s|'name'    => 'myinvoice',|'name'    => '${DB_NAME}',|" \
+      -e "s|'user'    => 'root',|'user'    => '${DB_USER}',|" \
+      -e "s|'pass'    => 'CHANGE-ME',|'pass'    => '${DB_PASSWORD}',|" \
+      -e "s|'pepper' => 'CHANGE-ME',|'pepper' => '${PEPPER}',|" \
+      -e "s|'secret_encryption_key' => '',|'secret_encryption_key' => '${ENC_KEY}',|" \
+      -e "s|'env'    => 'production',|'env'    => 'development',|" \
+      -e "s|'url'    => 'https://dev.example.com',|'url'    => '${APP_URL}',|" \
+      -e "s|'cookie_name'   => '__Host-myinvoice_session',|'cookie_name'   => 'myinvoice_session',|" \
+      -e "s|'cookie_secure' => true,|'cookie_secure' => false,|" \
+      cfg.docker.php
+  rm -f cfg.docker.php.bak
+  echo "    cfg.docker.php written"
+  echo ""
+  echo "    !!  Edit cfg.docker.php to fill in SMTP, Cloudflare Turnstile, IP allowlist  !!"
+  echo ""
+else
+  echo "==> cfg.docker.php already exists (skipping)"
+fi
+
+# --- 3. pull image from GHCR ----------------------------------------------
+echo "==> Pulling image from GHCR…"
+"${COMPOSE[@]}" pull app
+
+# --- 4. up -----------------------------------------------------------------
+echo "==> Starting stack…"
+"${COMPOSE[@]}" up -d db app
+
+# --- 5. wait for DB + migrate ---------------------------------------------
+echo "==> Waiting for database to become healthy…"
+for i in {1..30}; do
+  status=$("${COMPOSE[@]}" ps --format json db 2>/dev/null | grep -o '"Health":"[^"]*"' | head -1 | cut -d'"' -f4)
+  if [[ "$status" == "healthy" ]]; then echo "    DB ready."; break; fi
+  sleep 2
+  if [[ $i -eq 30 ]]; then
+    echo "ERROR: DB failed to become healthy in 60s. Check '${COMPOSE[*]} logs db'." >&2
+    exit 1
+  fi
+done
+
+echo "==> Running database migrations…"
+"${COMPOSE[@]}" exec -T app php api/bin/migrate.php
+
+# --- 6. report -------------------------------------------------------------
+APP_PORT="${APP_PORT:-8080}"
+echo ""
+echo "============================================================"
+echo " MyInvoice.cz is up at:  http://localhost:${APP_PORT}"
+echo " Image:                  ghcr.io/radekhulan/myinvoice:latest"
+echo ""
+echo " The browser will land on the setup wizard:"
+echo "   1. Admin user (name, email, password ≥ 12 chars)"
+echo "   2. Supplier (IČ → Načíst z ARES → bank account)"
+echo "   3. Optional sample data"
+echo ""
+echo " Useful (-f ${COMPOSE_FILE} flag is needed for all compose calls):"
+echo "   docker compose -f ${COMPOSE_FILE} logs -f app"
+echo "   docker compose -f ${COMPOSE_FILE} pull && docker compose -f ${COMPOSE_FILE} up -d   # update"
+echo "   docker compose -f ${COMPOSE_FILE} down           # stop (data persists)"
+echo "   docker compose -f ${COMPOSE_FILE} down -v        # stop + WIPE volumes"
+echo "============================================================"

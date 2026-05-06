@@ -250,6 +250,8 @@ async function issue() {
   try {
     invoice.value = await invoicesApi.issue(invoice.value.id)
     toast.success( t('invoice.issued_as', { varsymbol: invoice.value.varsymbol }))
+    invoicesApi.activity(invoice.value.id).then(a => { activity.value = a }).catch(() => {})
+    invoicesApi.listPdfs(invoice.value.id).then(items => { pdfHistory.value = items }).catch(() => {})
   } catch (e: any) {
     toast.error( e?.response?.data?.error?.message || t('invoice.issue_failed'))
   } finally {
