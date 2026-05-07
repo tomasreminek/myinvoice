@@ -67,6 +67,11 @@ final class Mailer
         if (!isset($vars['supplier'])) {
             $vars['supplier'] = $this->loadSupplierFooter();
         }
+        // Pre-compute display dimensions pro logo (HTML width/height attributy
+        // — email klienti respektují líp než CSS max-height, viz Outlook).
+        if (is_array($vars['supplier'] ?? null)) {
+            $vars['supplier'] = $this->addLogoDisplaySize($vars['supplier']);
+        }
 
         // Pokud je v DB override, vyrenderuj přímo ze stringu (vyšší priorita než file).
         $dbTpl = $this->templates->find($code, $locale)
@@ -341,6 +346,36 @@ final class Mailer
             $this->supplierFooter = [];
             return null;
         }
+    }
+
+    /**
+     * Spočítá display rozměry loga pro 48px display height (HTML width/height
+     * atributy v `<img>` tagu — respektovány všemi email klienty na rozdíl
+     * od CSS max-height, které Outlook a další ignorují).
+     *
+     * Doplní do $supplier klíče `logo_display_width`, `logo_display_height`.
+     * Pokud logo neexistuje nebo branding je vypnutý, klíče zůstanou null.
+     */
+    private function addLogoDisplaySize(array $supplier): array
+    {
+        $supplier['logo_display_width']  = null;
+        $supplier['logo_display_height'] = null;
+
+        if (empty($supplier['email_branding_enabled']) || empty($supplier['logo_path'])) {
+            return $supplier;
+        }
+        $abs = Bootstrap::rootDir() . '/' . ltrim((string) $supplier['logo_path'], '/');
+        if (!is_file($abs)) return $supplier;
+
+        $info = @getimagesize($abs);
+        if ($info === false || (int) $info[1] === 0) return $supplier;
+
+        $targetH = 48;
+        $w = (int) $info[0];
+        $h = (int) $info[1];
+        $supplier['logo_display_height'] = $targetH;
+        $supplier['logo_display_width']  = max(1, (int) round($w * $targetH / $h));
+        return $supplier;
     }
 
     private function defaultSubject(string $code, string $locale): string

@@ -22,8 +22,16 @@
               <tr>
                 <td style="vertical-align:middle;">
                   {% if has_logo %}
-                    {# Per-supplier logo (CID inline image v emailu, data URI v preview) #}
-                    <img src="{{ supplier.logo_inline_src|default('cid:supplier_logo') }}" alt="{{ (supplier.display_name|default(supplier.company_name)) }}" style="display:block;max-height:48px;max-width:280px;width:auto;height:auto;">
+                    {# Per-supplier logo (CID inline image v emailu, data URI v preview).
+                       HTML width/height atributy jsou klíčové — Outlook a další klienti
+                       CSS max-height na <img> ignorují. Rozměry pre-počítané server-side
+                       z file dimenzí (Mailer::addLogoDisplaySize). #}
+                    {% set lw = supplier.logo_display_width|default(0) %}
+                    {% set lh = supplier.logo_display_height|default(48) %}
+                    <img src="{{ supplier.logo_inline_src|default('cid:supplier_logo') }}"
+                         alt="{{ (supplier.display_name|default(supplier.company_name)) }}"
+                         {% if lw > 0 %}width="{{ lw }}" {% endif %}height="{{ lh }}"
+                         style="display:block;height:{{ lh }}px;{% if lw > 0 %}width:{{ lw }}px;{% endif %}max-width:280px;border:0;">
                   {% else %}
                     {# Fallback: MyInvoice „M" box (default branding) #}
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:36px;height:36px;background:{{ accent }};border-radius:8px;">

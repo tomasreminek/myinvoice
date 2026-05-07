@@ -175,13 +175,23 @@ final class EmailBrandingAction
         ];
 
         // Pro preview embedneme logo jako data: URI (klient ho vidí přímo v iframe).
-        $supplier['logo_inline_src'] = null;
+        // + spočítáme display rozměry pro HTML width/height (CSS max-height email
+        // klienti často ignorují, attributy ne).
+        $supplier['logo_inline_src']     = null;
+        $supplier['logo_display_width']  = null;
+        $supplier['logo_display_height'] = null;
         if ($supplier['logo_path']) {
             $abs = Bootstrap::rootDir() . '/' . ltrim((string) $supplier['logo_path'], '/');
             if (is_file($abs)) {
                 $bytes = (string) @file_get_contents($abs);
                 if ($bytes !== '') {
                     $supplier['logo_inline_src'] = 'data:image/png;base64,' . base64_encode($bytes);
+                }
+                $info = @getimagesize($abs);
+                if ($info !== false && (int) $info[1] > 0) {
+                    $targetH = 48;
+                    $supplier['logo_display_height'] = $targetH;
+                    $supplier['logo_display_width']  = max(1, (int) round((int) $info[0] * $targetH / (int) $info[1]));
                 }
             }
         }
