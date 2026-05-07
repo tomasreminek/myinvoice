@@ -137,6 +137,12 @@ docker compose exec app php api/bin/migrate.php
 > `cfg.docker.php` doplnit ručně (viz komentář v ukázce). Pro one-click
 > ekvivalent použij **Variantu A** (vyžaduje klon repa).
 
+> 📖 **Manuál na `/manual`:** GHCR image má od **v2.1.5** vygenerovaný HTML
+> manuál (`tools/generateManualHtml.php` se volá build-time v `Dockerfile`),
+> takže `http://localhost:8080/manual` funguje bez dalších kroků. Update na
+> nový obsah = `cmd/docker-update.{sh,ps1}` (pull novějšího image z GHCR
+> stáhne i nové vygenerované kapitoly).
+
 ### 2.1.4 Po dokončení (všechny varianty)
 
 **Otevři: 👉 http://localhost:8080**
@@ -215,13 +221,50 @@ TLS, ale server odpovídá plain HTTP.
 3. **Cloudflare Tunnel / Tailscale Funnel** — pokud chceš veřejný přístup
    bez otevírání portů na firewallu.
 
-**A v `cfg.docker.php` přepni production cookie nastavení:**
+**Konkrétní recept — Caddy jako další container vedle stacku:**
+
+V kořeni repa (vedle `docker-compose.production.yml`) vytvoř `Caddyfile`:
+
+```
+faktury.tvojefirma.cz {
+    reverse_proxy localhost:8080
+}
+```
+
+Pak Caddy spusť na host síti, aby viděl port `8080`:
+
+```bash
+docker run -d --name caddy --restart unless-stopped \
+  --network host \
+  -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  -v caddy_data:/data \
+  -v caddy_config:/config \
+  caddy:2
+```
+
+Caddy si vyžádá Let's Encrypt cert sám (potřebuje veřejně dostupné porty
+80/443 a A/AAAA záznam pro doménu). Auto-renewuje. `X-Forwarded-Proto: https`
+posílá automaticky — to je důležité, protože `.htaccess` v repu bez tohoto
+hlavičky vynucuje HTTP→HTTPS redirect a vzniká redirect loop.
+
+**A v `cfg.docker.php` přepni production nastavení:**
 
 ```php
-'cookie_secure' => true,
-'cookie_name'   => '__Host-myinvoice_session',
-'url'           => 'https://vase-domena.cz',
+'app' => [
+    'url' => 'https://faktury.tvojefirma.cz',  // doslova to, co user vidí v adresáku
+    ...
+],
+'session' => [
+    'cookie_secure'   => true,
+    'cookie_name'     => '__Host-myinvoice_session',
+    'cookie_samesite' => 'Lax',
+],
 ```
+
+`app.url` se používá v emailových odkazech (faktury, reset hesla, upomínky) —
+musí přesně odpovídat veřejné URL, jinak budou linky vést na špatnou doménu
+nebo `localhost:8080`. `__Host-` cookie prefix vyžaduje HTTPS — pokud jsi po
+této změně zkusil load přes `http://`, login se rozbije (cookie se neuloží).
 
 Restart stacku: `docker compose -f docker-compose.production.yml restart app`
 (nebo bez `-f` flagu pro Variantu B).

@@ -226,6 +226,11 @@ docker compose exec app php api/bin/migrate.php
 > `:1.7.0`. Update pak `cmd/docker-update.{sh,ps1}` (auto-detekuje registry
 > mode = `pull` + `up -d` + migrace).
 
+> 📖 **Manuál na `/manual`:** GHCR image má od **v2.1.5** vygenerovaný HTML
+> manuál (`tools/generateManualHtml.php` se volá build-time v `Dockerfile`),
+> takže `http://localhost:8080/manual` funguje bez dalších kroků. Update na
+> nový obsah = `cmd/docker-update.{sh,ps1}` (pull novějšího image).
+
 ### Po dokončení (všechny varianty)
 
 **Otevři: 👉 [http://localhost:8080](http://localhost:8080)**

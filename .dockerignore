@@ -3,12 +3,17 @@
 .vscode
 .claude
 .idea
-*.md
+
+# Root-level docs (manual/*.md MUST stay — generateManualHtml.php čte z nich)
+/README.md
+/CHANGELOG.md
+/source
 
 # Will be rebuilt inside image
 api/vendor
 web/node_modules
 web/dist
+manual/generated
 
 # Local-only
 cfg.php

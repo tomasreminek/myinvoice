@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.5] — 2026-05-07
+
+### Added
+
+- **HTML manuál uvnitř Docker imagu** — `Dockerfile` nově volá build-time
+  `php tools/generateManualHtml.php`, takže `manual/generated/` (19 kapitol
+  + INDEX + search-index) se napeče přímo do image. `/manual` route nyní
+  funguje out-of-the-box pro všechny tři Docker varianty (GHCR, build z
+  source, no-clone). Předtím vracel 503 *„Manuál není zatím vygenerovaný“*,
+  protože `manual/generated/` je gitignored a žádný build krok ho v Dockeru
+  nevyráběl.
+- **`.gitattributes`** — `*.sh text eol=lf`, `*.cmd / *.ps1 text eol=crlf`.
+  Přebíjí případně zapnutý `core.autocrlf=true` na Linux/WSL2 klonech, kde
+  by jinak shell skripty dostaly CRLF a praskly na shebangu (`bash\r`).
+
+### Fixed
+
+- **`.dockerignore` shadowoval markdown manuál** — globální vzor `*.md`
+  vyfiltroval `manual/*.md` z build kontextu, takže ani manuální spuštění
+  generátoru by uvnitř image nemělo zdrojové soubory. Vzor zúžen na
+  `/README.md` + `/CHANGELOG.md` + `/source` (dev-only specs); manuál
+  prochází.
+
+### Documentation
+
+- **`manual/02_Instalace.md` § 2.1.8 HTTPS / TLS terminace** — doplněn
+  konkrétní Caddy recept (Caddyfile + `docker run` na host network),
+  vysvětlení role `X-Forwarded-Proto` (jinak redirect loop s `.htaccess`)
+  a důsledků `__Host-` cookie prefixu po přepnutí na HTTPS.
+- **WSL2 / Linux troubleshooting** — README.md i manual § 2.1.1 popisují,
+  jak řešit `Permission denied` / `bash\r` po `git clone` v Linux/WSL2
+  s `core.autocrlf=true` (`sed -i`, `chmod +x`, `git config --global`).
+- **Varianta C (no-clone Docker)** — README + manual § 2.1.3 nově zmiňují,
+  že `/manual` je dostupné přímo z GHCR image bez jakéhokoliv extra kroku.
+
 ## [2.1.4] — 2026-05-07
 
 ### Fixed
