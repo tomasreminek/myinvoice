@@ -128,6 +128,11 @@ docker compose exec app php api/bin/migrate.php
 
 V prohlížeči naskočí setup wizard — viz [3. První spuštění](03_Setup_wizard.md).
 
+> ⚠️ **Použij `http://`, ne `https://`, a explicitní port `:8080`.** Docker
+> stack běží na plain HTTP — pokud zadáš `https://...` nebo defaultní port,
+> dostaneš `SSL_ERROR_RX_RECORD_TOO_LONG` / `ERR_SSL_PROTOCOL_ERROR`. Pro
+> HTTPS na LAN/produkčním serveru viz [2.1.8 HTTPS / TLS terminace](#218-https--tls-terminace).
+
 ### 2.1.5 Změna portu
 
 Edituj `.env` (vznikl po prvním spuštění):
@@ -162,6 +167,43 @@ docker compose --profile redis up -d
 ```
 
 a v `cfg.docker.php` nastav `redis.enabled => true`. Restart appky.
+
+### 2.1.8 HTTPS / TLS terminace
+
+Docker stack sám TLS nedělá — Apache uvnitř kontejneru poslouchá na portu 80
+(HTTP) a mapuje se na host port `8080`. Pokud potřebuješ HTTPS (LAN server,
+produkce, doménové jméno), postav před stack reverse proxy s TLS terminací.
+
+**Symptom špatné konfigurace:** prohlížeč hodí `SSL_ERROR_RX_RECORD_TOO_LONG`
+(Firefox) nebo `ERR_SSL_PROTOCOL_ERROR` (Chrome) — znamená to, že browser mluví
+TLS, ale server odpovídá plain HTTP.
+
+**Tři rozumné cesty:**
+
+1. **Caddy (nejjednodušší)** — automatický Let's Encrypt pro doménu nebo
+   self-signed pro IP, jeden Caddyfile řádek:
+   ```
+   vase-domena.cz {
+       reverse_proxy localhost:8080
+   }
+   ```
+
+2. **Nginx + self-signed cert** (`mkcert` nebo `openssl`) — pro intranet
+   bez veřejného doménového jména.
+
+3. **Cloudflare Tunnel / Tailscale Funnel** — pokud chceš veřejný přístup
+   bez otevírání portů na firewallu.
+
+**A v `cfg.docker.php` přepni production cookie nastavení:**
+
+```php
+'cookie_secure' => true,
+'cookie_name'   => '__Host-myinvoice_session',
+'url'           => 'https://vase-domena.cz',
+```
+
+Restart stacku: `docker compose -f docker-compose.production.yml restart app`
+(nebo bez `-f` flagu pro Variantu B).
 
 ## 2.2 Nativní install (5 minut)
 
