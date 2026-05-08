@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # MyInvoice.cz — Docker upgrade watcher.
 #
-# Sleduje storage/upgrade-requested.json a když ho UI vytvoří (POST
-# /api/admin/update/trigger), spustí docker-update.sh a výsledek zapíše
-# do storage/upgrade-result.json. UI to pak v Settings → Aktualizace
-# zobrazí jako „aplikováno / selhalo".
+# Sleduje storage/upgrade-requested.json **uvnitř** kontejneru (přes
+# `docker compose exec`) a když ho UI vytvoří (POST /api/admin/update/
+# trigger), spustí docker-update.sh a výsledek zapíše zpět do containeru
+# do storage/upgrade-result.json. UI to v Systém → Aktualizace zobrazí
+# jako „aplikováno / selhalo".
+#
+# Storage je Docker named volume (ne bind-mount), takže host watcher
+# musí na flag soubor sahat přes `exec`. Tohle je oprava bugu v3.0.0/3.0.1
+# kdy watcher na hostu neviděl flag uvnitř volume.
 #
 # Provoz:
 #   - Pust jako systemd unit, supervisord, nebo "while true; do" smyčku
 #     v session přihlášené k host shellu.
-#   - Volitelně 1x denně přes cron, ale to znamená, že upgrade odsune
-#     až o 24h od kliknutí v UI.
 #
 # Příklad systemd unit (/etc/systemd/system/myinvoice-update-watcher.service):
 #
@@ -34,50 +37,62 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-FLAG="storage/upgrade-requested.json"
-RESULT="storage/upgrade-result.json"
-INFLIGHT="storage/upgrade-inflight.json"
 INTERVAL_S="${MYINVOICE_WATCHER_INTERVAL:-30}"
 
-mkdir -p storage
-echo "[watcher] start, polling ${FLAG} every ${INTERVAL_S}s (cwd: ${PROJECT_ROOT})"
+# Detect compose file — preferuj production.yml pokud existuje a má běžící stack.
+COMPOSE_ARGS=()
+if [[ -f docker-compose.production.yml ]] \
+   && docker compose -f docker-compose.production.yml ps app 2>/dev/null | grep -q "running"; then
+    COMPOSE_ARGS=("-f" "docker-compose.production.yml")
+fi
 
-write_result() {
-    local status="$1"
-    local target="$2"
-    local message="$3"
-    local applied_at
-    applied_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    cat > "$RESULT" <<EOF
-{
-  "status": "${status}",
-  "target_version": "${target}",
-  "applied_at": "${applied_at}",
-  "message": $(printf '%s' "$message" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))' 2>/dev/null || printf '"%s"' "${message//\"/\\\"}")
-}
-EOF
-}
+dc() { docker compose "${COMPOSE_ARGS[@]}" "$@"; }
+
+echo "[watcher] start, polling storage/upgrade-requested.json inside container every ${INTERVAL_S}s"
+echo "[watcher] compose: ${COMPOSE_ARGS[*]:-<default docker-compose.yml>}"
 
 while true; do
-    if [[ -f "$FLAG" ]]; then
-        # Přesunutí před spuštěním — zabrání double-trigger, kdyby smyčka
-        # běžela dvakrát (např. dva watchery).
-        mv "$FLAG" "$INFLIGHT"
-
-        TARGET="$(grep -oE '"target_version"\s*:\s*"[^"]+"' "$INFLIGHT" | head -1 | sed -E 's/.*"target_version"\s*:\s*"([^"]+)".*/\1/')"
+    if dc exec -T app test -f storage/upgrade-requested.json 2>/dev/null; then
+        FLAG_JSON="$(dc exec -T app cat storage/upgrade-requested.json 2>/dev/null || echo '{}')"
+        TARGET="$(printf '%s' "$FLAG_JSON" \
+            | grep -oE '"target_version"[[:space:]]*:[[:space:]]*"[^"]+"' \
+            | head -1 \
+            | sed -E 's/.*"target_version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' \
+            || true)"
         TARGET="${TARGET:-latest}"
 
         echo "[watcher] $(date -u +%FT%TZ) upgrade requested → ${TARGET}"
 
-        LOG="storage/upgrade-$(date -u +%Y%m%dT%H%M%SZ).log"
+        # Lock: přejmenuj uvnitř kontejneru — vyhne se double-trigger
+        dc exec -T app mv -f storage/upgrade-requested.json storage/upgrade-inflight.json 2>/dev/null || true
+
+        LOG="/tmp/myinvoice-upgrade-$(date -u +%Y%m%dT%H%M%SZ).log"
         if bash "$PROJECT_ROOT/cmd/docker-update.sh" >"$LOG" 2>&1; then
+            STATUS="applied"
+            MESSAGE="Upgrade dokončen. Log na hostu: ${LOG}"
             echo "[watcher] OK"
-            write_result "applied" "$TARGET" "Upgrade dokončen. Log: ${LOG}"
         else
-            echo "[watcher] FAILED (rc=$?). Viz $LOG"
-            write_result "failed" "$TARGET" "Upgrade selhal. Log: ${LOG}"
+            STATUS="failed"
+            MESSAGE="Upgrade selhal. Log na hostu: ${LOG}"
+            echo "[watcher] FAILED. Viz ${LOG}"
         fi
-        rm -f "$INFLIGHT"
+
+        # Po `docker-update.sh` se kontejner restartuje — počkej, až bude zpátky.
+        for _i in $(seq 1 30); do
+            if dc exec -T app true 2>/dev/null; then break; fi
+            sleep 2
+        done
+
+        APPLIED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        # Escape pro JSON — message může obsahovat /, mezery, ne ale uvozovky.
+        SAFE_MSG="$(printf '%s' "$MESSAGE" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        RESULT_JSON=$(printf '{"status":"%s","target_version":"%s","applied_at":"%s","message":"%s"}' \
+            "$STATUS" "$TARGET" "$APPLIED_AT" "$SAFE_MSG")
+
+        printf '%s' "$RESULT_JSON" \
+            | dc exec -T app sh -c 'cat > storage/upgrade-result.json' \
+            || echo "[watcher] WARN: nelze zapsat upgrade-result.json"
+        dc exec -T app rm -f storage/upgrade-inflight.json 2>/dev/null || true
     fi
     sleep "$INTERVAL_S"
 done

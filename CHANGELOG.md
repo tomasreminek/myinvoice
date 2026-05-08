@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.2] — 2026-05-08
+
+### Fixed
+
+- **Docker upgrade watcher neviděl flag soubor** — `storage/` v
+  `docker-compose.production.yml` je Docker named volume (ne bind-mount),
+  takže `Test-Path` / `[[ -f ]]` na hostu vždy false. UI správně zapsalo
+  `storage/upgrade-requested.json` uvnitř kontejneru, ale watcher na
+  hostu ho nikdy nenašel → tlačítko *Aktualizovat* skončilo věčně ve
+  stavu „Upgrade probíhá…". Opraveno: `cmd/docker-update-watcher.{sh,ps1}`
+  teď polluje přes `docker compose exec -T app test -f storage/...`,
+  flag čte přes `cat`, lockuje přes `mv` uvnitř kontejneru, výsledek
+  zapisuje zpět přes `sh -c 'cat > ...'`. Po `docker-update.{sh,ps1}`
+  počká až se kontejner po restartu vrátí (až 60 s) a teprve pak píše
+  result.json.
+
+### Notes
+
+- Watcher script je na hostu (mimo image), takže pro update na novou
+  verzi script: `git pull` (pokud klonuješ) nebo
+  `curl -O https://raw.githubusercontent.com/radekhulan/myinvoice/master/cmd/docker-update-watcher.sh`
+  (Linux) /
+  `curl -O https://raw.githubusercontent.com/radekhulan/myinvoice/master/cmd/docker-update-watcher.ps1`
+  (Windows). Image samotná `:3.0.2` se chová stejně jako `:3.0.1` —
+  fix je jen v host-side scriptu.
+
 ## [3.0.1] — 2026-05-08
 
 ### Fixed
