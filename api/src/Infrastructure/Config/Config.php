@@ -301,11 +301,11 @@ final class Config
         // Older Docker/Coolify installs used DB_* variables plus a cfg.php that
         // hardcoded the compose service hostname. Keep those installs bootable
         // after switching to the upstream stub cfg.php.
-        if ((getenv('DB_NAME') !== false || getenv('DB_USER') !== false || getenv('DB_PASSWORD') !== false)
-            && getenv('DB_HOST') === false
-            && getenv('MYINVOICE_DB_HOST') === false
-            && getenv('MYSQL_HOST') === false
-            && ($data['db']['host'] ?? null) === '127.0.0.1'
+        if ((self::hasConcreteEnvValue('DB_NAME') || self::hasConcreteEnvValue('DB_USER') || self::hasConcreteEnvValue('DB_PASSWORD'))
+            && !self::hasConcreteEnvValue('DB_HOST')
+            && !self::hasConcreteEnvValue('MYINVOICE_DB_HOST')
+            && !self::hasConcreteEnvValue('MYSQL_HOST')
+            && in_array((string) ($data['db']['host'] ?? ''), ['', '127.0.0.1', 'localhost'], true)
         ) {
             $data['db']['host'] = 'db';
         }
@@ -316,6 +316,12 @@ final class Config
     private static function isUnresolvedEnvReference(string $raw): bool
     {
         return preg_match(self::UNRESOLVED_ENV_REFERENCE_PATTERN, trim($raw)) === 1;
+    }
+
+    private static function hasConcreteEnvValue(string $name): bool
+    {
+        $raw = getenv($name);
+        return is_string($raw) && trim($raw) !== '' && !self::isUnresolvedEnvReference($raw);
     }
 
     private static function castEnv(string $raw, string $type): mixed
