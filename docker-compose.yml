@@ -33,7 +33,6 @@ services:
       - app-private:/var/www/html/private
     environment:
       TZ: Europe/Prague
-      PORT: 80
 
   db:
     image: mariadb:11
