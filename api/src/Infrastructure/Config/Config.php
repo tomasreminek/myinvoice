@@ -181,6 +181,11 @@ final class Config
             'MYINVOICE_TIMEZONE'    => ['app.timezone', 'string'],
             'MYINVOICE_LOCALE'      => ['app.locale_default', 'string'],
 
+            // Backward-compatible aliases used by older Docker/Coolify deploys.
+            'APP_URL'    => ['app.url', 'string'],
+            'APP_PEPPER' => ['app.pepper', 'string'],
+            'APP_SECRET' => ['app.secret_encryption_key', 'string'],
+
             // Database (jednotlivé klíče i kompozitní DATABASE_URL)
             'MYINVOICE_DB_HOST'    => ['db.host', 'string'],
             'MYINVOICE_DB_PORT'    => ['db.port', 'int'],
@@ -188,6 +193,11 @@ final class Config
             'MYINVOICE_DB_USER'    => ['db.user', 'string'],
             'MYINVOICE_DB_PASS'    => ['db.pass', 'string'],
             'MYINVOICE_DB_SOCKET'  => ['db.socket', 'string'],
+            'DB_HOST'              => ['db.host', 'string'],
+            'DB_PORT'              => ['db.port', 'int'],
+            'DB_NAME'              => ['db.name', 'string'],
+            'DB_USER'              => ['db.user', 'string'],
+            'DB_PASSWORD'          => ['db.pass', 'string'],
 
             // Mainstream PaaS aliasy (Railway, Heroku, Fly.io)
             'MYSQL_HOST'     => ['db.host', 'string'],
@@ -224,10 +234,20 @@ final class Config
             'MYINVOICE_SMTP_PASS'       => ['smtp.pass', 'string'],
             'MYINVOICE_SMTP_FROM_EMAIL' => ['smtp.from_email', 'string'],
             'MYINVOICE_SMTP_FROM_NAME'  => ['smtp.from_name', 'string'],
+            'SMTP_HOST'                 => ['smtp.host', 'string'],
+            'SMTP_PORT'                 => ['smtp.port', 'int'],
+            'SMTP_ENCRYPTION'           => ['smtp.encryption', 'string'],
+            'SMTP_AUTH'                 => ['smtp.auth_enabled', 'bool'],
+            'SMTP_USER'                 => ['smtp.user', 'string'],
+            'SMTP_PASS'                 => ['smtp.pass', 'string'],
+            'SMTP_FROM_EMAIL'           => ['smtp.from_email', 'string'],
+            'SMTP_FROM_NAME'            => ['smtp.from_name', 'string'],
 
             // Captcha (Cloudflare Turnstile)
             'MYINVOICE_TURNSTILE_SITE_KEY'   => ['captcha.site_key', 'string'],
             'MYINVOICE_TURNSTILE_SECRET_KEY' => ['captcha.secret_key', 'string'],
+            'CAPTCHA_SITE_KEY'               => ['captcha.site_key', 'string'],
+            'CAPTCHA_SECRET_KEY'             => ['captcha.secret_key', 'string'],
 
             // Logging
             'MYINVOICE_LOG_LEVEL' => ['logging.level', 'string'],
@@ -276,6 +296,18 @@ final class Config
             }
             $value = self::castEnv($raw, $type);
             $data  = self::setByPath($data, $path, $value);
+        }
+
+        // Older Docker/Coolify installs used DB_* variables plus a cfg.php that
+        // hardcoded the compose service hostname. Keep those installs bootable
+        // after switching to the upstream stub cfg.php.
+        if ((getenv('DB_NAME') !== false || getenv('DB_USER') !== false || getenv('DB_PASSWORD') !== false)
+            && getenv('DB_HOST') === false
+            && getenv('MYINVOICE_DB_HOST') === false
+            && getenv('MYSQL_HOST') === false
+            && ($data['db']['host'] ?? null) === '127.0.0.1'
+        ) {
+            $data['db']['host'] = 'db';
         }
 
         return $data;

@@ -110,8 +110,10 @@ final class Mailer
         $email = (new Email())
             ->from(new Address($globalFromEmail, $fromName))
             ->subject((string) $vars['subject'])
-            ->html($html)
             ->text($text);
+
+        $html = $this->embedDataUriImages($email, $html);
+        $email->html($html);
 
         // Per-supplier branding logo jako CID inline image — je-li `email_branding_enabled`
         // a logo soubor existuje. Twig používá `cid:supplier_logo` jako image src.
@@ -228,6 +230,34 @@ final class Mailer
             $this->transport = Transport::fromDsn($this->buildDsn());
         }
         return $this->transport;
+    }
+
+    /**
+     * Některé mail klienty ignorují nebo blokují data URI obrázky. Převeď je
+     * na inline CID attachments, aby DB šablony a starší logo preview fungovaly
+     * i mimo prohlížeč.
+     */
+    private function embedDataUriImages(Email $email, string $html): string
+    {
+        if (!preg_match_all('/src=(["\'])(data:image\/([a-z0-9.+-]+);base64,([^"\']+))\1/i', $html, $matches, PREG_SET_ORDER)) {
+            return $html;
+        }
+
+        foreach ($matches as $i => $match) {
+            $fullSrc = $match[2];
+            $subtype = strtolower($match[3]);
+            $rawBase64 = preg_replace('/\s+/', '', $match[4]) ?? '';
+            $binary = base64_decode($rawBase64, true);
+            if ($binary === false) {
+                continue;
+            }
+
+            $cid = 'data_uri_' . $i . '_' . substr(hash('sha256', $binary), 0, 12);
+            $email->embed($binary, $cid, 'image/' . $subtype);
+            $html = str_replace($fullSrc, 'cid:' . $cid, $html);
+        }
+
+        return $html;
     }
 
     private function buildDsn(): string
