@@ -21,7 +21,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "${APP_PORT:-8080}:80"
+      - "${APP_PORT:-8080}:3000"
     volumes:
       # Default 3-volume layout (kompatibilní s 3.1.x — `docker compose pull && up -d`
       # na 3.2.1 funguje bez migrace). Pro single-volume mód (PaaS, Railway, Heroku,
@@ -33,6 +33,7 @@ services:
       - app-private:/var/www/html/private
     environment:
       TZ: Europe/Prague
+      PORT: 3000
 
   db:
     image: mariadb:11
