@@ -64,7 +64,7 @@ services:
     restart: unless-stopped
     depends_on:
       mariadb:
-        condition: service_healthy
+        condition: service_started
     expose:
       - "80"
     environment:
@@ -87,6 +87,8 @@ services:
 
       # Random application pepper generated once by Coolify and kept stable.
       - MYINVOICE_PEPPER=${SERVICE_PASSWORD_64_MYINVOICE_PEPPER}
+      - MYINVOICE_MIGRATE_ATTEMPTS=60
+      - MYINVOICE_MIGRATE_DELAY=3
     volumes:
       - myinvoice-data:/data
 
@@ -101,12 +103,6 @@ services:
       - MARIADB_ROOT_PASSWORD=${SERVICE_PASSWORD_64_MYINVOICE_DB_ROOT}
     volumes:
       - myinvoice-db:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
 
 volumes:
   myinvoice-data:
