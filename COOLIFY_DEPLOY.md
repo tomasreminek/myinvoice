@@ -2,11 +2,14 @@
 
 Use `docker-compose.coolify-empty.yml` when creating a new Coolify **Empty**
 Docker Compose resource and pasting the whole compose file into Coolify.
+This variant uses Coolify magic variables, so Coolify generates the public URL
+and the MariaDB/application secrets automatically. You should not need to add
+any environment variables manually for a normal fresh deployment.
 
 Use `docker-compose.coolify.yml` when deploying from this Git repository and
 selecting a compose file path.
 
-Required environment variables:
+The Git-based compose file still expects explicit variables:
 
 ```env
 MYINVOICE_APP_URL=https://your-domain.example
