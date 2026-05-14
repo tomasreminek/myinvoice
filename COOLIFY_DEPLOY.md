@@ -5,6 +5,9 @@ Docker Compose resource and pasting the whole compose file into Coolify.
 This variant uses Coolify magic variables, so Coolify generates the public URL
 and the MariaDB/application secrets automatically. You should not need to add
 any environment variables manually for a normal fresh deployment.
+It builds from the official GitHub release tarball instead of GHCR, because the
+GHCR tags advertised by the upstream release currently return `manifest unknown`
+when pulled anonymously.
 
 Use `docker-compose.coolify.yml` when deploying from this Git repository and
 selecting a compose file path.

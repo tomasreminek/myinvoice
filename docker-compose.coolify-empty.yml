@@ -1,12 +1,66 @@
 # MyInvoice.cz for Coolify "Empty" / Docker Compose resource.
 #
 # Paste this file into Coolify as a Docker Compose configuration.
-# It pulls the official image from GHCR, asks Coolify to generate a public URL,
-# and lets Coolify create stable random passwords/secrets automatically.
+# It builds a small runtime image from the official GitHub release bundle,
+# asks Coolify to generate a public URL, and lets Coolify create stable
+# random passwords/secrets automatically.
 
 services:
   myinvoice:
-    image: ghcr.io/radekhulan/myinvoice:latest
+    build:
+      dockerfile_inline: |
+        FROM php:8.5-apache
+
+        ARG MYINVOICE_VERSION=3.6.2
+        ARG MYINVOICE_RELEASE_SHA256=4c27700da51b20d5e47dbf072ea0a221eacfde5d0560c704f052eb62517403ff
+
+        ENV TZ=Europe/Prague
+        ENV PORT=80
+        ENV IPE_PROCESSOR_COUNT=1
+        ENV MAKEFLAGS=-j1
+
+        COPY --from=mlocati/php-extension-installer:latest /usr/bin/install-php-extensions /usr/local/bin/
+
+        RUN apt-get update \
+         && apt-get install -y --no-install-recommends \
+              curl tini tar librsvg2-bin \
+         && rm -rf /var/lib/apt/lists/* \
+         && install-php-extensions pdo_mysql gd intl zip bcmath redis
+
+        RUN a2enmod rewrite headers deflate expires \
+         && sed -ri 's!AllowOverride None!AllowOverride All!g' /etc/apache2/apache2.conf \
+         && sed -ri 's!^Listen 80$!Listen $${PORT}!' /etc/apache2/ports.conf \
+         && sed -ri 's!<VirtualHost \*:80>!<VirtualHost *:$${PORT}>!' /etc/apache2/sites-available/000-default.conf \
+         && { \
+              echo 'memory_limit = 256M'; \
+              echo 'upload_max_filesize = 20M'; \
+              echo 'post_max_size = 25M'; \
+              echo 'max_execution_time = 60'; \
+              echo 'date.timezone = Europe/Prague'; \
+              echo 'expose_php = Off'; \
+              echo 'opcache.enable = 1'; \
+              echo 'opcache.memory_consumption = 128'; \
+              echo 'opcache.max_accelerated_files = 20000'; \
+              echo 'opcache.validate_timestamps = 0'; \
+            } > /usr/local/etc/php/conf.d/99-myinvoice.ini
+
+        WORKDIR /tmp
+        RUN curl -fsSL -o myinvoice.tar.gz "https://github.com/radekhulan/myinvoice/releases/download/v$${MYINVOICE_VERSION}/myinvoice-$${MYINVOICE_VERSION}.tar.gz" \
+         && echo "$${MYINVOICE_RELEASE_SHA256}  myinvoice.tar.gz" | sha256sum -c - \
+         && tar -xzf myinvoice.tar.gz \
+         && rm -rf /var/www/html \
+         && mv "myinvoice-$${MYINVOICE_VERSION}" /var/www/html \
+         && rm myinvoice.tar.gz \
+         && echo '<?php return [];' > /var/www/html/cfg.php \
+         && chmod +x /var/www/html/docker-entrypoint.sh \
+         && mkdir -p /data/log /data/storage /data/private \
+         && chown -R www-data:www-data /var/www/html /data
+
+        WORKDIR /var/www/html
+        VOLUME ["/data"]
+        EXPOSE 80
+        ENTRYPOINT ["/usr/bin/tini", "--"]
+        CMD ["/var/www/html/docker-entrypoint.sh"]
     restart: unless-stopped
     depends_on:
       mariadb:
