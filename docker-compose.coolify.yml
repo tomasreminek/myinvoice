@@ -1,46 +1,99 @@
-# MyInvoice.cz — Coolify deployment using the official pre-built GHCR image.
+# MyInvoice.cz for Coolify.
 #
-# This compose file intentionally does not contain a `build:` block. Coolify
-# should pull `ghcr.io/radekhulan/myinvoice` instead of compiling PHP extensions
-# during deployment.
+# This file intentionally does not use the upstream GHCR image, because those
+# tags currently return `manifest unknown` when pulled anonymously. It builds
+# from the official GitHub release bundle instead.
 
 services:
-  app:
-    image: ghcr.io/radekhulan/myinvoice:${MYINVOICE_IMAGE_TAG:-latest}
+  myinvoice:
+    build:
+      dockerfile_inline: |
+        FROM php:8.5-apache
+
+        ARG MYINVOICE_VERSION=3.6.2
+        ARG MYINVOICE_RELEASE_SHA256=4c27700da51b20d5e47dbf072ea0a221eacfde5d0560c704f052eb62517403ff
+
+        ENV TZ=Europe/Prague
+        ENV PORT=80
+        ENV IPE_PROCESSOR_COUNT=1
+        ENV MAKEFLAGS=-j1
+
+        COPY --from=mlocati/php-extension-installer:latest /usr/bin/install-php-extensions /usr/local/bin/
+
+        RUN apt-get update \
+         && apt-get install -y --no-install-recommends \
+              curl tini tar librsvg2-bin \
+         && rm -rf /var/lib/apt/lists/* \
+         && install-php-extensions pdo_mysql gd intl zip bcmath redis
+
+        RUN a2enmod rewrite headers deflate expires \
+         && sed -ri 's!AllowOverride None!AllowOverride All!g' /etc/apache2/apache2.conf \
+         && sed -ri 's!^Listen 80$!Listen $${PORT}!' /etc/apache2/ports.conf \
+         && sed -ri 's!<VirtualHost \*:80>!<VirtualHost *:$${PORT}>!' /etc/apache2/sites-available/000-default.conf \
+         && { \
+              echo 'memory_limit = 256M'; \
+              echo 'upload_max_filesize = 20M'; \
+              echo 'post_max_size = 25M'; \
+              echo 'max_execution_time = 60'; \
+              echo 'date.timezone = Europe/Prague'; \
+              echo 'expose_php = Off'; \
+              echo 'opcache.enable = 1'; \
+              echo 'opcache.memory_consumption = 128'; \
+              echo 'opcache.max_accelerated_files = 20000'; \
+              echo 'opcache.validate_timestamps = 0'; \
+            } > /usr/local/etc/php/conf.d/99-myinvoice.ini
+
+        WORKDIR /tmp
+        RUN curl -fsSL -o myinvoice.tar.gz "https://github.com/radekhulan/myinvoice/releases/download/v$${MYINVOICE_VERSION}/myinvoice-$${MYINVOICE_VERSION}.tar.gz" \
+         && echo "$${MYINVOICE_RELEASE_SHA256}  myinvoice.tar.gz" | sha256sum -c - \
+         && tar -xzf myinvoice.tar.gz \
+         && rm -rf /var/www/html \
+         && mv "myinvoice-$${MYINVOICE_VERSION}" /var/www/html \
+         && rm myinvoice.tar.gz \
+         && echo '<?php return [];' > /var/www/html/cfg.php \
+         && chmod +x /var/www/html/docker-entrypoint.sh \
+         && mkdir -p /data/log /data/storage /data/private \
+         && chown -R www-data:www-data /var/www/html /data
+
+        WORKDIR /var/www/html
+        VOLUME ["/data"]
+        EXPOSE 80
+        ENTRYPOINT ["/usr/bin/tini", "--"]
+        CMD ["/var/www/html/docker-entrypoint.sh"]
     restart: unless-stopped
     depends_on:
-      db:
+      mariadb:
         condition: service_healthy
+    expose:
+      - "80"
     environment:
-      TZ: Europe/Prague
-      MYINVOICE_APP_ENV: production
-      MYINVOICE_APP_DEBUG: "false"
-      MYINVOICE_APP_URL: ${MYINVOICE_APP_URL}
-      MYINVOICE_DB_HOST: db
-      MYINVOICE_DB_PORT: "3306"
-      MYINVOICE_DB_NAME: ${DB_NAME:-myinvoice}
-      MYINVOICE_DB_USER: ${DB_USER:-myinvoice}
-      MYINVOICE_DB_PASS: ${DB_PASSWORD}
-      MYINVOICE_PEPPER: ${APP_PEPPER}
-      MYINVOICE_SECRET_KEY: ${APP_SECRET}
-      MYINVOICE_DATA_DIR: /data
-      MYINVOICE_SESSION_COOKIE_SECURE: ${MYINVOICE_SESSION_COOKIE_SECURE:-true}
-    ports:
-      - "${APP_PORT:-8080}:80"
+      - SERVICE_URL_MYINVOICE_80
+      - TZ=Europe/Prague
+      - MYINVOICE_APP_URL=$SERVICE_URL_MYINVOICE_80
+      - MYINVOICE_APP_ENV=production
+      - MYINVOICE_APP_DEBUG=false
+      - MYINVOICE_SESSION_COOKIE_SECURE=true
+      - MYINVOICE_DATA_DIR=/data
+      - MYINVOICE_DB_HOST=mariadb
+      - MYINVOICE_DB_PORT=3306
+      - MYINVOICE_DB_NAME=myinvoice
+      - MYINVOICE_DB_USER=myinvoice
+      - MYINVOICE_DB_PASS=${SERVICE_PASSWORD_64_MYINVOICE_DB}
+      - MYINVOICE_PEPPER=${SERVICE_PASSWORD_64_MYINVOICE_PEPPER}
     volumes:
-      - app-data:/data
+      - myinvoice-data:/data
 
-  db:
+  mariadb:
     image: mariadb:11
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MARIADB_DATABASE: ${DB_NAME:-myinvoice}
-      MARIADB_USER: ${DB_USER:-myinvoice}
-      MARIADB_PASSWORD: ${DB_PASSWORD}
-      TZ: Europe/Prague
+      - TZ=Europe/Prague
+      - MARIADB_DATABASE=myinvoice
+      - MARIADB_USER=myinvoice
+      - MARIADB_PASSWORD=${SERVICE_PASSWORD_64_MYINVOICE_DB}
+      - MARIADB_ROOT_PASSWORD=${SERVICE_PASSWORD_64_MYINVOICE_DB_ROOT}
     volumes:
-      - db-data:/var/lib/mysql
+      - myinvoice-db:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -49,5 +102,5 @@ services:
       start_period: 30s
 
 volumes:
-  app-data:
-  db-data:
+  myinvoice-data:
+  myinvoice-db:
