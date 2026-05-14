@@ -1,0 +1,66 @@
+# MyInvoice.cz for Coolify "Empty" / Docker Compose resource.
+#
+# Paste this file into Coolify as a Docker Compose configuration.
+# It pulls the official image from GHCR and does not build anything locally.
+
+services:
+  myinvoice:
+    image: ghcr.io/radekhulan/myinvoice:${MYINVOICE_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    ports:
+      # For direct IP testing. Change APP_PORT in Coolify env if 8080 is busy.
+      - "${APP_PORT:-8080}:80"
+    environment:
+      TZ: Europe/Prague
+
+      # Public URL of the app. For initial IP-only testing use:
+      #   http://31.97.126.27:8080
+      # For production with a domain use:
+      #   https://fakturace.example.com
+      MYINVOICE_APP_URL: ${MYINVOICE_APP_URL:-http://31.97.126.27:8080}
+      MYINVOICE_APP_ENV: production
+      MYINVOICE_APP_DEBUG: "false"
+
+      # Set to false for plain HTTP/IP testing. Set to true after HTTPS works.
+      MYINVOICE_SESSION_COOKIE_SECURE: ${MYINVOICE_SESSION_COOKIE_SECURE:-false}
+
+      # Store all stateful app files in one persistent Coolify volume.
+      MYINVOICE_DATA_DIR: /data
+
+      # Database connection.
+      MYINVOICE_DB_HOST: mariadb
+      MYINVOICE_DB_PORT: "3306"
+      MYINVOICE_DB_NAME: ${DB_NAME:-myinvoice}
+      MYINVOICE_DB_USER: ${DB_USER:-myinvoice}
+      MYINVOICE_DB_PASS: ${DB_PASSWORD}
+
+      # Required secrets. Generate these in Coolify env variables.
+      MYINVOICE_PEPPER: ${APP_PEPPER}
+      MYINVOICE_SECRET_KEY: ${APP_SECRET}
+    volumes:
+      - myinvoice-data:/data
+
+  mariadb:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Prague
+      MARIADB_DATABASE: ${DB_NAME:-myinvoice}
+      MARIADB_USER: ${DB_USER:-myinvoice}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - myinvoice-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  myinvoice-data:
+  myinvoice-db:

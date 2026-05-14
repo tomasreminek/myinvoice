@@ -1,6 +1,10 @@
 # MyInvoice Coolify deploy
 
-Use `docker-compose.coolify.yml` for Coolify deployments.
+Use `docker-compose.coolify-empty.yml` when creating a new Coolify **Empty**
+Docker Compose resource and pasting the whole compose file into Coolify.
+
+Use `docker-compose.coolify.yml` when deploying from this Git repository and
+selecting a compose file path.
 
 Required environment variables:
 
