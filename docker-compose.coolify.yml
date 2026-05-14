@@ -1,0 +1,53 @@
+# MyInvoice.cz — Coolify deployment using the official pre-built GHCR image.
+#
+# This compose file intentionally does not contain a `build:` block. Coolify
+# should pull `ghcr.io/radekhulan/myinvoice` instead of compiling PHP extensions
+# during deployment.
+
+services:
+  app:
+    image: ghcr.io/radekhulan/myinvoice:${MYINVOICE_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TZ: Europe/Prague
+      MYINVOICE_APP_ENV: production
+      MYINVOICE_APP_DEBUG: "false"
+      MYINVOICE_APP_URL: ${MYINVOICE_APP_URL}
+      MYINVOICE_DB_HOST: db
+      MYINVOICE_DB_PORT: "3306"
+      MYINVOICE_DB_NAME: ${DB_NAME:-myinvoice}
+      MYINVOICE_DB_USER: ${DB_USER:-myinvoice}
+      MYINVOICE_DB_PASS: ${DB_PASSWORD}
+      MYINVOICE_PEPPER: ${APP_PEPPER}
+      MYINVOICE_SECRET_KEY: ${APP_SECRET}
+      MYINVOICE_DATA_DIR: /data
+      MYINVOICE_SESSION_COOKIE_SECURE: ${MYINVOICE_SESSION_COOKIE_SECURE:-true}
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - app-data:/data
+
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME:-myinvoice}
+      MARIADB_USER: ${DB_USER:-myinvoice}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      TZ: Europe/Prague
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  app-data:
+  db-data:
