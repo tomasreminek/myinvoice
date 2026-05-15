@@ -52,6 +52,8 @@ services:
          && mv "myinvoice-$${MYINVOICE_VERSION}" /var/www/html \
          && rm myinvoice.tar.gz \
          && echo '<?php return [];' > /var/www/html/cfg.php \
+         && sed -ri 's!^    RewriteCond [%][{]HTTPS[}] off$!    RewriteCond %{HTTPS} never-match-coolify-http-route!' /var/www/html/.htaccess \
+         && sed -ri '/Strict-Transport-Security/d' /var/www/html/.htaccess \
          && chmod +x /var/www/html/docker-entrypoint.sh \
          && mkdir -p /data/log /data/storage /data/private \
          && chown -R www-data:www-data /var/www/html /data
@@ -76,7 +78,7 @@ services:
       - MYINVOICE_APP_URL=${SERVICE_URL_MYINVOICE_80:-http://localhost}
       - MYINVOICE_APP_ENV=production
       - MYINVOICE_APP_DEBUG=false
-      - MYINVOICE_SESSION_COOKIE_SECURE=true
+      - MYINVOICE_SESSION_COOKIE_SECURE=false
       - MYINVOICE_DATA_DIR=/data
 
       - MYINVOICE_DB_HOST=mariadb

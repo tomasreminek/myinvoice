@@ -14,6 +14,10 @@ and the app database password/application pepper use Coolify magic variables
 with non-empty fallbacks, so a fresh deployment does not require manual
 environment variables.
 
+The generated `sslip.io` URL is HTTP by default. The Coolify image patch
+disables the upstream `.htaccess` HTTPS redirect/HSTS header and sets the
+session cookie to HTTP-compatible mode so the generated domain opens directly.
+
 After the first successful deploy, run in the `app` container:
 
 ```bash
