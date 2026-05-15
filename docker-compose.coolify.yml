@@ -51,7 +51,7 @@ services:
          && mv "myinvoice-$${MYINVOICE_VERSION}" /var/www/html \
          && rm myinvoice.tar.gz \
          && echo '<?php return [];' > /var/www/html/cfg.php \
-         && sed -ri 's!^    RewriteCond [%][{]HTTPS[}] off$!    RewriteCond %{HTTPS} never-match-coolify-http-route!' /var/www/html/.htaccess \
+         && sed -i '12,25d' /var/www/html/.htaccess \
          && sed -ri '/Strict-Transport-Security/d' /var/www/html/.htaccess \
          && chmod +x /var/www/html/docker-entrypoint.sh \
          && mkdir -p /data/log /data/storage /data/private \
