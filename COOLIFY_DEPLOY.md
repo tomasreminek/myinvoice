@@ -8,9 +8,11 @@ selecting a compose file path. Both files intentionally avoid
 the upstream GHCR image, because those tags currently return `manifest unknown`
 when pulled anonymously.
 
-Both Coolify files use Coolify magic variables, so Coolify generates the public
-URL and the MariaDB/application secrets automatically. You should not need to
-add any environment variables manually for a normal fresh deployment.
+Both Coolify files ask Coolify to generate the public URL automatically. MariaDB
+generates its root password internally with `MARIADB_RANDOM_ROOT_PASSWORD=true`,
+and the app database password/application pepper use Coolify magic variables
+with non-empty fallbacks, so a fresh deployment does not require manual
+environment variables.
 
 After the first successful deploy, run in the `app` container:
 

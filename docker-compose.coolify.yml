@@ -69,7 +69,7 @@ services:
     environment:
       - SERVICE_URL_MYINVOICE_80
       - TZ=Europe/Prague
-      - MYINVOICE_APP_URL=$SERVICE_URL_MYINVOICE_80
+      - MYINVOICE_APP_URL=${SERVICE_URL_MYINVOICE_80:-http://localhost}
       - MYINVOICE_APP_ENV=production
       - MYINVOICE_APP_DEBUG=false
       - MYINVOICE_SESSION_COOKIE_SECURE=true
@@ -78,8 +78,8 @@ services:
       - MYINVOICE_DB_PORT=3306
       - MYINVOICE_DB_NAME=myinvoice
       - MYINVOICE_DB_USER=myinvoice
-      - MYINVOICE_DB_PASS=${SERVICE_PASSWORD_64_MYINVOICE_DB}
-      - MYINVOICE_PEPPER=${SERVICE_PASSWORD_64_MYINVOICE_PEPPER}
+      - MYINVOICE_DB_PASS=${SERVICE_PASSWORD_64_DB:-myinvoice-db-local-fallback-password}
+      - MYINVOICE_PEPPER=${SERVICE_PASSWORD_64_PEPPER:-myinvoice-pepper-local-fallback-secret}
       - MYINVOICE_MIGRATE_ATTEMPTS=60
       - MYINVOICE_MIGRATE_DELAY=3
     volumes:
@@ -92,8 +92,8 @@ services:
       - TZ=Europe/Prague
       - MARIADB_DATABASE=myinvoice
       - MARIADB_USER=myinvoice
-      - MARIADB_PASSWORD=${SERVICE_PASSWORD_64_MYINVOICE_DB}
-      - MARIADB_ROOT_PASSWORD=${SERVICE_PASSWORD_64_MYINVOICE_DB_ROOT}
+      - MARIADB_PASSWORD=${SERVICE_PASSWORD_64_DB:-myinvoice-db-local-fallback-password}
+      - MARIADB_RANDOM_ROOT_PASSWORD=true
     volumes:
       - myinvoice-db:/var/lib/mysql
 
